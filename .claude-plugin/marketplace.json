@@ -1,0 +1,15 @@
+{
+  "name": "itsomidho",
+  "description": "Claude Code plugins by Omid Hosseini",
+  "owner": {
+    "name": "Omid Hosseini",
+    "url": "https://github.com/itsomidho"
+  },
+  "plugins": [
+    {
+      "name": "clawd-statusbar",
+      "source": "./",
+      "description": "A framed status bar with git, pipeline and usage figures, and Clawd frying an egg while Claude works"
+    }
+  ]
+}

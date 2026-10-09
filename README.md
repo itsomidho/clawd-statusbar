@@ -2,12 +2,9 @@
 
 A status bar for [Claude Code](https://claude.com/claude-code) that sits in a thin frame under the prompt, with Clawd, the little creature from Claude Code's welcome screen, frying an egg on the right while Claude works.
 
-```
-╭──────────────────────────────────────────────────────────────────────────────╮
-│ ◆ Opus 5.5 · CTX 5% 52k · 5h 18% ↻ 2h 14m                      ▖▐▛███▜▌  ~·~ │
-│ ~/code/shop · ⎇ feature/cart · ●3 · ↑2 · !171 ✓                ▝▜█████▛▘ \o/ │
-╰──────────────────────────────────────────────────────────────────────────────╯
-```
+![Clawd frying an egg in the status bar through one turn](docs/clawd.gif)
+
+<sub>One turn, time-lapsed: the egg cracks in, sizzles while the yolk sets, and is served with a ✓; the pipeline goes from running to passed.</sub>
 
 ## What it shows
 

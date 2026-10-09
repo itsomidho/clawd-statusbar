@@ -225,13 +225,6 @@ test('the script is the one shipped in the plugin', async ($, on) => {
   expect(ran[0]?.argv).toMatch(/^bash \/.+\/scripts\/statusline\.sh$/)
 })
 
-test('local sites reach the script as STATUSLINE_SITES', { options: { localSites: '~/code/shop=https://shop.test/' } }, async ($, on) => {
-  const ran: Record<string, string>[] = []
-  await start($, on, ran)
-
-  expect(ran[0]?.STATUSLINE_SITES).toBe('~/code/shop=https://shop.test/')
-})
-
 test('Clawd can be turned off', { options: { mascot: false } }, async ($, on) => {
   await start($, on)
 

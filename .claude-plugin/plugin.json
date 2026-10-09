@@ -1,12 +1,22 @@
 {
   "name": "clawd-statusbar",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A framed status bar under the prompt: context, usage limits with reset times, git state, MR/PR pipeline status, and Clawd frying an egg while Claude works",
-  "author": { "name": "Omid Hosseini", "url": "https://github.com/itsomidho" },
+  "author": {
+    "name": "Omid Hosseini",
+    "url": "https://github.com/itsomidho"
+  },
   "homepage": "https://github.com/itsomidho/clawd-statusbar",
   "repository": "https://github.com/itsomidho/clawd-statusbar",
   "license": "MIT",
-  "keywords": ["statusline", "status-bar", "mascot", "git", "gitlab", "github"],
+  "keywords": [
+    "statusline",
+    "status-bar",
+    "mascot",
+    "git",
+    "gitlab",
+    "github"
+  ],
   "types": "./types/index.d.ts",
   "userConfig": {
     "mascot": {
@@ -14,12 +24,6 @@
       "title": "Clawd",
       "description": "Show Clawd at the right of the bar, frying an egg while Claude works.",
       "default": true
-    },
-    "localSites": {
-      "type": "string",
-      "title": "Local sites",
-      "description": "Warn when a project's local dev site is down: <repo path>=<url> pairs separated by ';', e.g. ~/code/shop=https://shop.test/; ~/code/blog=http://localhost:8080/",
-      "default": ""
     }
   }
 }

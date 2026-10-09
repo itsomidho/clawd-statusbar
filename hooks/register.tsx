@@ -84,7 +84,7 @@ const COLORS: Record<string, string> = {
 
 let isOff = false
 // The person's settings (the manifest's userConfig), read as the module loads.
-let config = { sites: '', hasMascot: true }
+let config = { hasMascot: true }
 // The running turn's animation; a reload drops it with the old module.
 let animation: { cancel: () => void } | undefined
 let servings = 0
@@ -135,7 +135,7 @@ async function refresh($: EngineInterface) {
   }
   const run = await $.process.run(['bash', `${$.plugin.root}/${SCRIPT}`], {
     stdin: JSON.stringify(input),
-    env: { STATUSLINE_LAYOUT: 'parts', STATUSLINE_SITES: config.sites },
+    env: { STATUSLINE_LAYOUT: 'parts' },
     timeoutMs: 4000,
   })
   // Each line is `kind<TAB>text`; a line without a tab is its own text, dim.
@@ -182,10 +182,7 @@ export function fit<T extends { text: string }>(all: readonly T[], room: number)
 }
 
 export const register: Register = (on, options) => {
-  config = {
-    sites: typeof options.localSites === 'string' ? options.localSites : '',
-    hasMascot: options.mascot !== false,
-  }
+  config = { hasMascot: options.mascot !== false }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({

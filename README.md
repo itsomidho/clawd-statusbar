@@ -32,7 +32,6 @@ A status bar for [Claude Code](https://claude.com/claude-code) that sits in a th
 | `≡1` | stashes |
 | `worktree name` | when the session runs in a linked git worktree |
 | `⚠ rebasing 2/5` | git stopped partway: a rebase, merge, cherry-pick, revert or bisect |
-| `⚠ site down` | the project's local dev site gives no answer or a 5xx (see Settings) |
 | `!171 ✓` `#12 ✗` `CI ⏳` | the branch's open GitLab MR or GitHub PR and its pipeline: green passed, red failed, yellow running; `CI` when there is a pipeline but no open MR |
 
 Everything that is not always useful appears only when it applies, so most of the time the bar is short. On a narrow terminal, items that do not fit are left out whole.
@@ -53,7 +52,7 @@ Answer `y` to add the marketplace, then choose a scope. The bar appears right aw
 
 ## Requirements
 
-- Linux or macOS, with `bash`, `jq`, `git` and `curl`
+- Linux or macOS, with `bash`, `jq` and `git`
 - Optional: [`gh`](https://cli.github.com) (logged in) for GitHub PR and Actions status, or [`glab`](https://gitlab.com/gitlab-org/cli) (logged in) for GitLab MR and pipeline status, including self-hosted GitLab. Without them that item stays hidden.
 
 ## Settings
@@ -63,11 +62,10 @@ Open `/plugin`, pick clawd-statusbar, and set:
 | Setting | Default | |
 |---|---|---|
 | Clawd | on | show the mascot |
-| Local sites | empty | pairs of `<repo path>=<url>` separated by `;`, for example `~/code/shop=https://shop.test/; ~/code/blog=http://localhost:8080/`. When the session's repo matches a path, the bar warns if that site is down. |
 
 ## How it works
 
-The figures come from one script, `scripts/statusline.sh`, which reads the session's JSON on stdin; the plugin (`hooks/register.tsx`) runs it every 5 seconds and draws the result. Anything that needs the network (the pipeline status every 60 seconds, the local site every 30) runs in the background and the bar shows the last answer, so a slow or unreachable server never holds it up. Requests to local sites skip any HTTP proxy.
+The figures come from one script, `scripts/statusline.sh`, which reads the session's JSON on stdin; the plugin (`hooks/register.tsx`) runs it every 5 seconds and draws the result. Anything that needs the network (the pipeline status, every 60 seconds) runs in the background and the bar shows the last answer, so a slow or unreachable server never holds it up.
 
 The script also works on its own as a classic `statusLine` command in `settings.json`, drawing the same figures as plain lines.
 

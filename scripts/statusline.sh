@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Claude Code status line: model, context, usage limits, repo/branch, git state,
-# MR/pipeline, a local site's health, and CPU/memory when high.
-# Reads the session JSON on stdin. Needs bash, jq, git and curl; gh or glab for
+# MR/pipeline, and CPU/memory when high.
+# Reads the session JSON on stdin. Needs bash, jq and git; gh or glab for
 # the MR/pipeline status. Works on Linux and macOS.
 
 input=$(cat)
@@ -103,29 +103,6 @@ if top=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null); then
 else
   repo_part="${B}${BL}${cwd/#$HOME/\~}${R}"
 fi
-
-# ---------- local site ----------
-# Whether the project's local dev site answers. STATUSLINE_SITES pairs repos
-# with their sites, `<repo path>=<url>` separated by `;`, e.g.
-# `~/code/shop=https://shop.test/; ~/code/blog=http://localhost:8080/`.
-# The check never holds up the bar: see cached().
-site_down=""
-IFS=';' read -ra sites <<<"${STATUSLINE_SITES:-}"
-for pair in "${sites[@]}"; do
-  [[ -n ${top:-} && $pair == *=* ]] || continue
-  lp=${pair%%=*}; url=${pair#*=}
-  lp=$(echo "$lp" | xargs); url=$(echo "$url" | xargs); lp=${lp/#\~/$HOME}
-  [[ $(realpath -m "$lp") == "$(realpath -m "$top")" ]] || continue
-  # A cold page takes seconds; it is asked again every 30s.
-  key=$(printf '%s' "$url" | cksum | cut -d' ' -f1)
-  code=$(cached "$CACHE_DIR/claude-statusline-site.$(id -u).$key" 30 \
-    curl -sk --noproxy '*' -o /dev/null -w '%{http_code}' --max-time 5 "$url")
-  # No answer, or a server error: anything else (a redirect, a 404) is up.
-  [[ $code == 000 ]] && site_down="site down"
-  [[ $code == 5* ]] && site_down="site $code"
-  break
-done
-[[ -n $site_down ]] && repo_part+=" ${B}${RD}⚠ ${site_down}${R}"
 
 # ---------- merge request / pipeline ----------
 # The open MR (GitLab, !n) or PR (GitHub, #n) for the branch and its pipeline's
@@ -260,7 +237,6 @@ if [[ ${STATUSLINE_LAYOUT:-wide} == parts ]]; then
   line_repo=("path	${cwd/#$HOME/\~}")
   # Warnings right after the path, so a short line still has room for them.
   [[ -n ${state:-} ]] && line_repo+=("alert	⚠ ${state}")
-  [[ -n $site_down ]] && line_repo+=("alert	⚠ ${site_down}")
   # The branch is its own part, whole: a caller short of room drops it rather
   # than printing half a name.
   if [[ -n ${top:-} ]]; then

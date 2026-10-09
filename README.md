@@ -29,7 +29,7 @@ A status bar for [Claude Code](https://claude.com/claude-code) that sits in a th
 | `≡1` | stashes |
 | `worktree name` | when the session runs in a linked git worktree |
 | `⚠ rebasing 2/5` | git stopped partway: a rebase, merge, cherry-pick, revert or bisect |
-| `!171 ✓` `#12 ✗` `CI ⏳` | the branch's open GitLab MR or GitHub PR and its pipeline: green passed, red failed, yellow running; `CI` when there is a pipeline but no open MR |
+| `!171 ✓` `#12 ✗` `CI ◔` | the branch's open GitLab MR or GitHub PR and its pipeline: green passed, red failed, yellow running; `CI` when there is a pipeline but no open MR |
 
 Everything that is not always useful appears only when it applies, so most of the time the bar is short. On a narrow terminal, items that do not fit are left out whole.
 

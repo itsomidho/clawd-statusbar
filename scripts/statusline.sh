@@ -143,7 +143,7 @@ review_status() {
   case $st in
     success) printf 'ok %s ✓' "${label:-CI}" ;;
     failed) printf 'fail %s ✗' "${label:-CI}" ;;
-    running|pending|created|preparing|waiting_for_resource|scheduled) printf 'run %s ⏳' "${label:-CI}" ;;
+    running|pending|created|preparing|waiting_for_resource|scheduled) printf 'run %s ◔' "${label:-CI}" ;;
     '') printf 'off %s' "$label" ;;
     *) printf 'off %s %s' "${label:-CI}" "${st//_/ }" ;;   # canceled, skipped, manual
   esac

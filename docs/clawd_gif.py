@@ -2,7 +2,7 @@
 
 The poses follow mascot() in hooks/register.tsx: same glyphs, colours and
 tick (150 ms); the long stretches of the turn are time-lapsed. Needs Pillow
-and the DejaVu and Noto Color Emoji fonts (paths below are Debian/Ubuntu).
+and the DejaVu fonts (paths below are Debian/Ubuntu).
 
     python3 docs/clawd_gif.py docs/clawd.gif
 """
@@ -33,19 +33,6 @@ CH = asc + desc
 # Block elements drawn as the terminal does: exact quarters of the cell.
 QUARTERS = {"█": "1111", "▌": "1010", "▐": "0101", "▘": "1000", "▝": "0100", "▖": "0010",
             "▗": "0001", "▛": "1110", "▜": "1101", "▙": "1011", "▟": "0111", "▀": "1100", "▄": "0011"}
-emoji = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", 109)
-EMOJI = "⏳"   # two cells wide, as in a terminal
-
-
-def paste_emoji(img, ch, x, y):
-    glyph = Image.new("RGBA", (136, 128), (0, 0, 0, 0))
-    ImageDraw.Draw(glyph).text((0, 0), ch, font=emoji, embedded_color=True)
-    glyph = glyph.crop(glyph.getbbox())
-    h = CH - 4
-    glyph = glyph.resize((round(glyph.width * h / glyph.height), h), Image.LANCZOS)
-    img.paste(glyph, (x + (2 * CW - glyph.width) // 2, y + 2), glyph)
-
-
 wide = ImageFont.truetype(WIDE, SIZE)
 while wide.getlength("⎇") > CW:
     wide = ImageFont.truetype(WIDE, wide.size - 1)
@@ -108,7 +95,7 @@ def frame(working, tick, blink, served, ctx, dirty, review):
     rows.append([(" " * INDENT + "╭" + "─" * (BOX - 2) + "╮", BORDER)])
 
     def body(line, m):
-        used = sum(len(t) + t.count(EMOJI) for t, _ in line)
+        used = sum(len(t) for t, _ in line)
         return ([(" " * INDENT + "│ ", BORDER)] + line + [(" " * (room - used + GAP), TEXT)]
                 + m + [(" │", BORDER)])
 
@@ -131,9 +118,6 @@ def frame(working, tick, blink, served, ctx, dirty, review):
                         if on == "1":
                             qx, qy = x + (q % 2) * hw, top + (q // 2) * hh
                             draw.rectangle([round(qx), round(qy), round(qx + hw) - 1, round(qy + hh) - 1], fill=colour)
-                elif ch == EMOJI:
-                    paste_emoji(img, ch, x, top)
-                    col += 1
                 elif ch != " ":
                     draw.text((x, base), ch, font=wide if ch == "⎇" else mono, fill=colour, anchor="ls")
                 col += 1
@@ -156,7 +140,7 @@ add(700, blink=False, **idle)
 # The turn: crack, then frying, time-lapsed through the yolk setting.
 for start, count, ctx in [(0, 22, 6), (67, 16, 8), (200, 16, 11)]:
     for tick in range(start, start + count):
-        add(150, working=True, tick=tick, blink=False, served=None, ctx=ctx, dirty=4, review=("CI ⏳", YELLOW))
+        add(150, working=True, tick=tick, blink=False, served=None, ctx=ctx, dirty=4, review=("CI ◔", YELLOW))
 
 done = dict(working=False, tick=0, ctx=11, dirty=5, review=("!171 ✓", GREEN))
 add(2000, blink=False, served=("✓", "●"), **done)

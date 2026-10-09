@@ -1,6 +1,6 @@
 {
   "name": "clawd-statusbar",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A framed status bar under the prompt: context, usage limits with reset times, git state, MR/PR pipeline status, and Clawd frying an egg while Claude works",
   "author": {
     "name": "Omid Hosseini",

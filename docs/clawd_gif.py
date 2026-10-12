@@ -27,6 +27,7 @@ RED = (224, 108, 117)
 CYAN = (86, 182, 194)
 BLUE = (97, 175, 239)
 MAGENTA = (198, 120, 221)
+FACE = (20, 20, 22)
 # The theme's own colours the poses name.
 SUGGESTION = (177, 185, 249)
 IDE = (71, 150, 228)
@@ -63,39 +64,47 @@ def loop(tick, every, frames):
     return frames[(tick // every) % len(frames)]
 
 
-def figure(blink, left, right, step=False):
-    """His two rows, as figure() draws them: arms up or down, legs stepping."""
-    head = ("▗" if left else " ") + ("███" if blink else "▛█▜") + ("▖" if right else " ")
-    body = ("▝" if left else "▀") + ("▜▀▛" if step else "▛▀▜") + ("▘" if right else "▀")
-    return head, body
+def face(blink, eyes="•", mouth="ω", glance=0):
+    e = "-" if blink else eyes
+    look = f"{e}{mouth}{e}"
+    return f"{look}  " if glance < 0 else f"  {look}" if glance > 0 else f" {look} "
+
+
+def figure(look, left, right, step=False):
+    """His two rows, as figure() draws them: paws up or down, legs stepping."""
+    paws = ("\\" if left else " ", "/" if right else " ")
+    body = (" " if left else "▀") + ("▀▜▀▛▀" if step else "▜▀▀▀▛") + (" " if right else "▀")
+    return paws, look, body
 
 
 def mascot(working, tick, blink, served, doing=None, agents=0):
-    """(head, body, steam, steam colour, yolk) as mascot() draws them."""
-    pose = lambda left, right, step=False: figure(blink, left, right, step)
+    """(paws, face, body, steam, steam colour, yolk) as mascot() draws them."""
+    smile = face(blink)
     if working:
         if tick < 4:
-            return (*pose(False, True), " o ", CLAUDE, "_")
+            return (*figure(face(blink, "•", "o"), False, True), " o ", CLAUDE, "_")
         y = yolk(tick)
         if doing == "thinking":
-            return (*pose(False, True), loop(tick, 3, ["   ", "·  ", "·· ", "···"]), CLAUDE, y)
+            return (*figure(face(blink, "·"), False, False), loop(tick, 3, ["   ", "·  ", "·· ", "···"]), CLAUDE, y)
         if doing == "reading":
-            return (*pose(False, True), loop(tick, 3, ["≡  ", " ≡ ", "  ≡", " ≡ "]), SUGGESTION, y)
+            return (*figure(smile, False, True), loop(tick, 3, ["≡  ", " ≡ ", "  ≡", " ≡ "]), SUGGESTION, y)
         if doing == "running":
-            return (*pose(True, False, loop(tick, 2, [False, True])), loop(tick, 3, [">_ ", ">  "]), GREEN, y)
+            return (*figure(" >ω< ", True, False, loop(tick, 2, [False, True])), loop(tick, 3, [">_ ", ">  "]), GREEN, y)
         if doing == "browsing":
-            return (*pose(False, True), f" {loop(tick, 2, GLOBE)} ", IDE, y)
+            return (*figure(smile, False, True), f" {loop(tick, 2, GLOBE)} ", IDE, y)
         if doing in ("delegating", "waiting"):
             count = "  " if agents == 0 else "9+" if agents > 9 else f"×{agents}"
-            return (*pose(False, False, loop(tick, 3, [False, True])), loop(tick, 1, SPIN) + count, MERGED, y)
+            look = face(blink, "•", "ω", loop(tick, 6, [0, -1, 0, 1]))
+            return (*figure(look, False, False, loop(tick, 3, [False, True])), loop(tick, 1, SPIN) + count, MERGED, y)
         if doing == "asking":
-            return (*pose(True, True), loop(tick, 3, [" ! ", "   "]), WARNING, y)
+            return (*figure(face(blink, "•", "o"), True, True), loop(tick, 3, [" ! ", "   "]), WARNING, y)
         left = (tick // 2) % 2 == 0
-        return (*pose(left, not left), SIZZLE[tick % 4], CLAUDE, y)
+        return (*figure(smile, left, not left), SIZZLE[tick % 4], CLAUDE, y)
     if served:
         mark, y = served
-        return (*pose(False, True), f" {mark} ", GREEN if mark == "✓" else RED, y)
-    return (*pose(False, False), "   ", CLAUDE, "_")
+        done = mark == "✓"
+        return (*figure(face(False, "^") if done else face(blink, ";"), False, done), f" {mark} ", GREEN if done else RED, y)
+    return (*figure(smile, False, False), "   ", CLAUDE, "_")
 
 
 def caption(working, doing, tool, agents):
@@ -107,7 +116,7 @@ def caption(working, doing, tool, agents):
 
 BOX = 85              # the frame's width in cells, on a 91-column terminal
 INNER = BOX - 4       # less border and padding
-MASCOT = 9
+MASCOT = 11
 CAPTION = 8
 GAP = 2
 INDENT = 2
@@ -127,7 +136,7 @@ def parts_line(parts):
 
 
 def frame(working, tick, blink, served, ctx, dirty, review, doing=None, tool="", agents=0, main=None):
-    head, figure_body, steam, steam_c, y = mascot(working, tick, blink, served, doing, agents)
+    paws, look, figure_body, steam, steam_c, y = mascot(working, tick, blink, served, doing, agents)
     word, detail = (part[:CAPTION] for part in caption(working, doing, tool, agents))
     main = working if main is None else main
     figures = parts_line([("◆ Opus 5.5", CYAN), (f"CTX {ctx}% {ctx * 10}k", DIM),
@@ -144,11 +153,11 @@ def frame(working, tick, blink, served, ctx, dirty, review, doing=None, tool="",
     rows.append([(" " * INDENT + "╭" + "─" * (BOX - 2) + "╮", BORDER)])
 
     def body(line, words, m):
-        used = sum(len(t) for t, _ in line)
+        used = sum(len(part[0]) for part in line)
         return ([(" " * INDENT + "│ ", BORDER)] + line + [(" " * (room - used + GAP), TEXT)]
                 + words + [(" " * GAP, TEXT)] + m + [(" │", BORDER)])
 
-    rows.append(body(figures, [(word.rjust(CAPTION), steam_c)], [(head, CLAUDE), (" " + steam, steam_c)]))
+    rows.append(body(figures, [(word.rjust(CAPTION), steam_c)], [(paws[0], CLAUDE), (look, FACE, CLAUDE), (paws[1], CLAUDE), (" " + steam, steam_c)]))
     pan = [(" \\", DIM), ("_" if y == "_" else y, DIM if y == "_" else YELLOW), ("/", DIM)]
     rows.append(body(project, [(detail.rjust(CAPTION), DIM)], [(figure_body, CLAUDE)] + pan))
     rows.append([(" " * INDENT + "╰" + "─" * (BOX - 2) + "╯", BORDER)])
@@ -157,10 +166,12 @@ def frame(working, tick, blink, served, ctx, dirty, review, doing=None, tool="",
     draw = ImageDraw.Draw(img)
     for r, line in enumerate(rows):
         col = 0
-        for text, colour in line:
+        for text, colour, *back in line:
             for ch in text:
                 x, base = PAD + col * CW, PAD + r * CH + asc
                 top = PAD + r * CH
+                if back:
+                    draw.rectangle([x, top, x + CW - 1, top + CH - 1], fill=back[0])
                 if ch in QUARTERS:
                     hw, hh = CW / 2, CH / 2
                     for q, on in enumerate(QUARTERS[ch]):

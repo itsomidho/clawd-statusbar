@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { activityOf, caption, doingOf, figure, fit, mascot, yolk } from './register'
+import { activityOf, caption, doingOf, face, figure, fit, mascot, yolk } from './register'
 
 const BRANCH = '⎇ feature/checkout/fix-z-index-of-navbar-and-the-cart-drawer-overlap'
 const FIGURES = [
@@ -144,7 +144,7 @@ test('the line stays inside the row, indent and right margin counted', async ($,
 
   // Inside the frame: the row less its indent, right margin, border and
   // padding, the mascot and the caption, each with the gap before it.
-  expect([...line].length).toBeLessThanOrEqual(90 - 2 - 4 - 4 - 9 - 2 - 8 - 2)
+  expect([...line].length).toBeLessThanOrEqual(90 - 2 - 4 - 4 - 11 - 2 - 8 - 2)
   expect(line).not.toBe('')
   await ui.unmount()
 })
@@ -167,7 +167,9 @@ const pose = (over: Partial<Parameters<typeof mascot>[0]> = {}) =>
   mascot({ isWorking: false, tick: 0, isBlinking: false, served: null, ...over })
 
 test('between turns the pan is empty and Clawd stands still', () => {
-  expect(pose()).toEqual({ head: ' ▛█▜ ', body: '▀▛▀▜▀', steam: '   ', mark: 'claude', pan: '\\_/' })
+  expect(pose()).toEqual({
+    left: ' ', face: ' •ω• ', right: ' ', head: '  •ω•  ', body: '▀▜▀▀▀▛▀', steam: '   ', mark: 'claude', pan: '\\_/',
+  })
 })
 
 test('a turn cracks the egg in, then fries it with the yolk setting', () => {
@@ -194,23 +196,31 @@ test('every pose keeps his width, so the figures never move', () => {
     ...[0, 3, 4, 5, 70, 250].map(tick => pose({ isWorking: true, tick })),
   ]
   for (const one of all) {
-    expect([...one.head].length).toBe(5)
-    expect([...`${one.body} ${one.pan}`].length).toBe(9)
+    expect([...one.head].length).toBe(7)
+    expect([...one.face].length).toBe(5)
+    expect([...`${one.body} ${one.pan}`].length).toBe(11)
     expect([...one.steam].length).toBe(3)
   }
 })
 
 test('a blink shuts his eyes', () => {
-  expect(pose({ isBlinking: true }).head).toBe(' ███ ')
+  expect(pose({ isBlinking: true }).face).toBe(' -ω- ')
 })
 
-test('he has arms to raise and legs to step', () => {
-  expect(figure(false, 'up', 'down')).toEqual({ head: '▗▛█▜ ', body: '▝▛▀▜▀' })
-  expect(figure(false, 'down', 'up')).toEqual({ head: ' ▛█▜▖', body: '▀▛▀▜▘' })
-  expect(figure(false, 'down', 'down', true).body).toBe('▀▜▀▛▀')
-  // Asking: both arms up.
+test('his face says how it went', () => {
+  expect(pose({ served: { mark: '✓', yolk: '●' } }).face).toBe(' ^ω^ ')
+  expect(pose({ served: { mark: 'x', yolk: 'o' } }).face).toBe(' ;ω; ')
+  expect(face(false, '•', 'ω', -1)).toBe('•ω•  ')
+  expect(face(false, '•', 'ω', 1)).toBe('  •ω•')
+})
+
+test('he has paws to raise and legs to step', () => {
+  expect(figure(' •ω• ', 'up', 'down')).toMatchObject({ head: '\\ •ω•  ', body: ' ▜▀▀▀▛▀' })
+  expect(figure(' •ω• ', 'down', 'up')).toMatchObject({ head: '  •ω• /', body: '▀▜▀▀▀▛ ' })
+  expect(figure(' •ω• ', 'down', 'down', true).body).toBe('▀▀▜▀▛▀▀')
+  // Asking: both paws up.
   expect(pose({ isWorking: true, tick: 8, doing: { activity: 'asking', tool: '', agents: 0, isBusy: true } }).head)
-    .toBe('▗▛█▜▖')
+    .toBe('\\ •o• /')
   // Running: his legs step as the ticks go.
   const run = (tick: number) =>
     pose({ isWorking: true, tick, doing: { activity: 'running', tool: 'Bash', agents: 0, isBusy: true } }).body
@@ -223,10 +233,10 @@ test('Clawd sits at the right of the frame, frying while a turn runs', async ($,
   const idle = JSON.stringify(await (await footer($, 120)).drawn())
   const busy = JSON.stringify(await (await footer($, 120, true)).drawn())
 
-  expect(idle).toContain('▛█▜')
+  expect(idle).toContain('ω')
   expect(idle).toContain('"color":"claude"')
   expect(idle).not.toMatch(/~·~|·~·|~ ~/)
-  expect(busy).toMatch(/(▛█▜|███)/)
+  expect(busy).toContain('"backgroundColor":"claude"')
   expect(busy).toMatch(/ o |~·~|·~·|~ ~| ~ /)
 })
 
@@ -235,7 +245,7 @@ test('a narrow row gives his room to the figures', async ($, on) => {
 
   const row = JSON.stringify(await (await footer($, 60)).drawn())
 
-  expect(row).not.toContain('▛█▜')
+  expect(row).not.toContain('ω')
   expect(row).toContain('◆ Opus 5')
 })
 
@@ -251,7 +261,7 @@ test('Clawd can be turned off', { options: { mascot: false } }, async ($, on) =>
 
   const row = JSON.stringify(await (await footer($, 120)).drawn())
 
-  expect(row).not.toContain('▛█▜')
+  expect(row).not.toContain('ω')
   expect(row).toContain('◆ Opus 5')
 })
 
@@ -296,8 +306,9 @@ test('every activity keeps his width', () => {
     for (const agents of [0, 3, 12]) {
       for (const tick of [4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) {
         const one = pose({ isWorking: true, tick, doing: { activity, tool: '', agents, isBusy: true } })
-        expect([...one.head].length).toBe(5)
-        expect([...`${one.body} ${one.pan}`].length).toBe(9)
+        expect([...one.head].length).toBe(7)
+        expect([...one.face].length).toBe(5)
+        expect([...`${one.body} ${one.pan}`].length).toBe(11)
         expect([...one.steam].length).toBe(3)
       }
     }

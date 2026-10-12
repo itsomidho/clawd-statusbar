@@ -40,7 +40,7 @@ Everything that is not always useful appears only when it applies, so most of th
  ▀██████▀  \_/
 ```
 
-While Claude works he shakes his fingers, the one above his left hand and then the one above his right (`▗` and `▖`), and cooks an egg: it drops into the pan, the pan glows red-hot, steam rises off it (`~ ~`, `~°~`), and the yolk sets as the turn runs long (`o`, then `◉` after 10 seconds, `●` after 30). When the turn ends the pan comes off the heat and he stands by it with a green `✓`, or a red `x` if the turn was interrupted or failed. Between turns he blinks over an empty pan.
+While Claude works he shakes his fingers, the one above his left hand and then the one above his right (`▗` and `▖`), and cooks an egg: it drops into the pan, the pan glows red-hot, steam rises off it (`~ ~`, `~°~`), and the yolk sets as the turn runs long (`o`, then `◉` after 10 seconds, `●` after 30). When the turn ends the pan comes off the heat and he stands by it with a green `✓`, or a red `x` if the turn was interrupted or failed. He blinks every few seconds, while Claude works and between turns, when the pan is empty.
 
 On his left a word says what Claude is doing, in its own colour, with the tool or how many agents run under it: `thinking`, `reading`, `editing`, `running`, `browsing`, `spawning` (an agent), `waiting` (on background agents) or `asking` (you a question).
 

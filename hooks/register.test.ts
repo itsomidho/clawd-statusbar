@@ -220,8 +220,10 @@ test('every pose keeps his width, so the figures never move', () => {
   for (const one of all) expectSize(one)
 })
 
-test('a blink shuts his eyes', () => {
+test('a blink shuts his eyes, between turns and while Claude works', () => {
   expect(pose({ isBlinking: true }).head).toBe('  ██████  ')
+  // Working: eyes shut, the finger still up.
+  expect(pose({ isWorking: true, tick: 8, isBlinking: true }).head).toBe('▗ ██████  ')
 })
 
 test('all he does while Claude works is shake his fingers, one hand then the other', () => {

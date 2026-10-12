@@ -375,8 +375,8 @@ export const register: Register = (on, options) => {
     // A tick that lands while the session is going away is nobody's error.
     $.clock.every(REFRESH_MS, () => void show($).catch(() => {}))
     $.clock.every(AGENTS_EVERY_MS, () => void countAgents($).catch(() => {}))
+    // He blinks every few seconds, between turns and while Claude works.
     $.clock.every(BLINK_EVERY_MS, () => {
-      if (isAnimating) return
       void update($, blinking, () => true)
         .then(() => $.clock.after(BLINK_MS, () => void update($, blinking, () => false).catch(() => {})))
         .catch(() => {})

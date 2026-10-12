@@ -1,6 +1,7 @@
 """Render docs/clawd.gif: the bar through one turn, Clawd frying an egg.
 
-The poses follow mascot() and caption() in hooks/register.tsx: same glyphs,
+It opens on the toast of a first session, once the plugin has fetched the
+tools it was missing. The poses follow mascot() and caption() in hooks/register.tsx: same glyphs,
 colours and tick (150 ms); the turn thinks, reads, edits, runs a command,
 browses, hands work to a background agent and waits on it after the main
 turn ends. The long stretches are time-lapsed. Needs Pillow
@@ -142,7 +143,8 @@ def parts_line(parts):
     return out
 
 
-def frame(working, tick, blink, served, ctx, dirty, review, doing=None, tool="", agents=0, main=None):
+def frame(working, tick, blink, served, ctx, dirty, review, doing=None, tool="", agents=0, main=None,
+          toast=None):
     (head, figure_body), steam, steam_c, y, word_c, hot = mascot(working, tick, blink, served, doing, agents)
     word, detail = (part[:CAPTION] for part in caption(working, doing, tool, agents))
     main = working if main is None else main
@@ -156,7 +158,8 @@ def frame(working, tick, blink, served, ctx, dirty, review, doing=None, tool="",
     room = INNER - MASCOT - GAP - CAPTION - GAP
     rows = []
     hint = "esc to interrupt" if main else "? for shortcuts"
-    rows.append([(" " * INDENT + hint, DIM)])
+    # A toast takes the line over the frame, at its right end.
+    rows.append([(" " * (INDENT + BOX - len(toast)) + toast, TEXT)] if toast else [(" " * INDENT + hint, DIM)])
     rows.append([(" " * INDENT + "╭" + "─" * (BOX - 2) + "╮", BORDER)])
 
     def body(line, words, m):
@@ -201,6 +204,9 @@ def add(ms, **kw):
 
 
 idle = dict(working=False, tick=0, served=None, ctx=5, dirty=3, review=None)
+# A first session on a machine without them: the plugin fetches jq, gh and glab.
+add(2600, blink=False, toast="Clawd installed jq, gh, glab; run gh auth login / glab auth login for the MR status",
+    **idle)
 add(900, blink=False, **idle)
 add(160, blink=True, **idle)
 add(700, blink=False, **idle)

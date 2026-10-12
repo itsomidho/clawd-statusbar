@@ -206,8 +206,9 @@ add(160, blink=True, **idle)
 add(700, blink=False, **idle)
 
 # The turn: crack, then each kind of work, the yolk setting as it runs long.
-busy = dict(blink=False, served=None, dirty=4, review=("CI ◔", YELLOW))
-tick = 0
+# He blinks while he cooks too, every 4.5 s (30 frames).
+busy = dict(served=None, dirty=4, review=("CI ◔", YELLOW))
+tick = shown = 0
 for count, ctx, doing, tool, agents, main in [
     (10, 6, "thinking", "", 0, True),
     (12, 7, "reading", "Grep", 0, True),
@@ -220,8 +221,10 @@ for count, ctx, doing, tool, agents, main in [
     (12, 12, "reading", "Read", 1, False),
 ]:
     for _ in range(count):
-        add(150, working=True, tick=tick, ctx=ctx, doing=doing, tool=tool, agents=agents, main=main, **busy)
+        add(150, working=True, tick=tick, blink=shown % 30 == 29, ctx=ctx, doing=doing, tool=tool,
+            agents=agents, main=main, **busy)
         tick += 1
+        shown += 1
     # Time-lapse: the yolk sets over the long stretches between.
     tick += 25
 

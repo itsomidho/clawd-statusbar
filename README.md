@@ -33,25 +33,24 @@ A status bar for [Claude Code](https://claude.com/claude-code) that sits in a th
 
 Everything that is not always useful appears only when it applies, so most of the time the bar is short. On a narrow terminal, items that do not fit are left out whole.
 
-**Clawd** is the creature from Claude Code's welcome screen, drawn pixel for pixel in three rows beside a pan:
+**Clawd** is the creature from Claude Code's welcome screen, without his legs: two rows beside a pan.
 
 ```
- █▜███▜▌
-▀██████▛▘
- ▘▘   ▘▘  \_/
+ █▜██▛█ ▖
+▀██████▀  \_/
 ```
 
-He fries an egg through each turn: he goes wide-eyed as it drops into the pan, flips it while it sizzles, and the yolk sets as the turn runs long (`o`, then `◉` after 10 seconds, `●` after 30). When the turn ends he holds it up with a green `✓`, or looks down at a red `x` if the turn was interrupted or failed. Between turns he blinks over an empty pan. He shows what Claude is doing while it works, with a word for it on his left (the tool, or how many agents run, under it):
+While Claude works he raises a finger and puts it down again (that `▖` above his right hand), and fries an egg: it drops into the pan, sizzles, and the yolk sets as the turn runs long (`o`, then `◉` after 10 seconds, `●` after 30). When the turn ends he stands by it with a green `✓`, or a red `x` if the turn was interrupted or failed. Between turns he blinks over an empty pan. Over the pan you see what Claude is doing, with a word for it on his left (the tool, or how many agents run, under it):
 
-| Doing | Clawd |
+| Doing | Over the pan |
 | --- | --- |
-| thinking | glances about as thought dots `·` `··` `···` rise from the pan |
-| reading (Read, Grep, Glob, ...) | an arm up, reading the recipe `≡` |
-| editing (Edit, Write, ...) and anything else | swaps arms flipping the egg as it sizzles |
-| running (Bash) | scuttles on the spot by a shell prompt `>_` |
-| browsing (WebFetch, WebSearch, browser MCP tools) | an arm up by a turning globe `◐` |
-| delegating, or waiting on background agents | glances about and taps his feet by a spinner and the count, `◜×2` |
-| asking you (AskUserQuestion, plan approval) | both arms up, eyes wide, with a `!` |
+| thinking | thought dots `·` `··` `···` |
+| reading (Read, Grep, Glob, ...) | the recipe `≡` |
+| editing (Edit, Write, ...) and anything else | sizzling `~·~` |
+| running (Bash) | a shell prompt `>_` |
+| browsing (WebFetch, WebSearch, browser MCP tools) | a turning globe `◐` |
+| delegating, or waiting on background agents | a spinner and the count, `◜×2` |
+| asking you (AskUserQuestion, plan approval) | a blinking `!` |
 
 A background agent keeps him busy after the main turn ends: he shows what the agent is doing, and serves the egg only once every agent is done. He steps aside on terminals narrower than 72 columns, and the caption on his left below 84.
 

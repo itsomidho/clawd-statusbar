@@ -31,7 +31,7 @@ const CRACK_TICKS = 4
 const SIZZLE = ['~·~', '·~·', '~ ~', ' ~ ']
 // How set the yolk is, by the turn's length so far: runny, then set, then hard.
 const YOLKS: readonly (readonly [number, string])[] = [[30_000, '●'], [10_000, '◉'], [0, 'o']]
-// Clawd's own nine cells and the pan's three, a space between.
+// Clawd's own nine cells (the last his finger's) and the pan's three.
 const MASCOT_WIDTH = 13
 const GAP = 2
 // Below this the figures need the room more than he does.
@@ -100,28 +100,23 @@ export function yolk(tick: number) {
   return YOLKS.find(([from]) => ms >= from)![1]
 }
 
-// Clawd as on the welcome screen, pixel for pixel: a grid 17 wide and 5 tall,
-// his body 13 wide with two eye holes, his arms out on the third row and four
-// legs. Each text cell holds 2x2 of it in quarter blocks, so he is nine cells
-// wide and three rows tall, the legs in the top half of the last.
-const BODY = '..#############..'
-const ARMS = '#################'
+// Clawd as on the welcome screen, without his legs: his body 12 wide with two
+// eye holes and his arms out on the third row, in a grid 18 wide and 4 tall
+// that leaves room for one finger, raised just above the tip of his right hand.
+// Each text cell holds 2x2 of it in quarter blocks: nine cells by two rows.
+const BODY = '..############....'
+const ARMS = '################..'
+const FINGER = { row: 1, at: 16 }
 const QUARTERS = ' ▗▖▄▝▐▞▟▘▚▌▙▀▜▛█'
-type Arm = 'down' | 'up'
 
-// Where his eye holes are: open, shut, wide (two rows tall), glancing a step to
-// either side, or cast down in his arms' row.
-export const EYES = {
-  open: { row: 1, at: [4, 12] }, shut: { row: 1, at: [] }, wide: { row: 0, at: [4, 12] },
-  left: { row: 1, at: [3, 11] }, right: { row: 1, at: [5, 13] }, down: { row: 2, at: [4, 12] },
-} as const
+// Where his eye holes are: open, or shut while he blinks.
+export const EYES = { open: { row: 1, at: [4, 11] }, shut: { row: 1, at: [] } } as const
 export type Eyes = keyof typeof EYES
-const LEGS = [[2, 4, 12, 14], [3, 5, 11, 13]] as const
 
-// A grid of '#' and '.' to three rows of quarter blocks.
+// A grid of '#' and '.' to two rows of quarter blocks.
 export function blocks(grid: readonly string[]) {
   const at = (r: number, c: number) => (grid[r]?.[c] === '#' ? 1 : 0)
-  return [0, 2, 4].map(r => {
+  return [0, 2].map(r => {
     let row = ''
     for (let c = 0; c < 18; c += 2) {
       row += QUARTERS[at(r, c) * 8 + at(r, c + 1) * 4 + at(r + 1, c) * 2 + at(r + 1, c + 1)]
@@ -130,86 +125,60 @@ export function blocks(grid: readonly string[]) {
   })
 }
 
-// His grid for a pose: the eyes cut out, a raised arm moved up a row, the legs
-// standing or stepped out. Returns his three rows.
-export function figure(eyes: Eyes, left: Arm, right: Arm, isStepping = false) {
-  const rows = [BODY, BODY, ARMS, BODY, ''].map(row => [...row])
+// His two rows: the eyes cut out, and the finger shown or hidden.
+export function figure(eyes: Eyes, hasFinger = false) {
+  const rows = [BODY, BODY, ARMS, BODY].map(row => [...row])
   const look = EYES[eyes]
-  for (const c of look.at) {
-    rows[look.row]![c] = '.'
-    if (eyes === 'wide') rows[1]![c] = '.'
-  }
-  const raise = (from: number) => {
-    rows[2]![from] = '.'; rows[2]![from + 1] = '.'
-    rows[1]![from] = '#'; rows[1]![from + 1] = '#'
-  }
-  if (left === 'up') raise(0)
-  if (right === 'up') raise(15)
-  rows[4] = [...'.'.repeat(17)]
-  for (const c of LEGS[isStepping ? 1 : 0]) rows[4]![c] = '#'
-  const [head, body, legs] = blocks(rows.map(row => row.join('')))
+  for (const c of look.at) rows[look.row]![c] = '.'
+  if (hasFinger) rows[FINGER.row]![FINGER.at] = '#'
+  const [head, body] = blocks(rows.map(row => row.join('')))
 
-  return { head: head!, body: body!, legs: legs! }
+  return { head: head!, body: body! }
 }
 
 export function mascot(state: {
   isWorking: boolean; tick: number; isBlinking: boolean; served: Served | null; doing?: Doing
 }) {
   const { isWorking, tick, isBlinking, served, doing } = state
-  // Open, unless he is blinking.
-  const eyes = (open: Eyes = 'open'): Eyes => (isBlinking ? 'shut' : open)
-  const glance = () => eyes(frame(tick, 8, ['open', 'left', 'open', 'right'] as const))
+  const eyes: Eyes = isBlinking ? 'shut' : 'open'
   if (isWorking) {
-    // Wide-eyed, an arm up, as the egg drops from above into the pan.
-    if (tick < CRACK_TICKS) {
-      const isHigh = tick < CRACK_TICKS / 2
-      return { ...figure(eyes('wide'), 'down', 'up'), top: isHigh ? ' o ' : '   ', steam: isHigh ? '   ' : ' o ', mark: 'claude', pan: PAN }
-    }
+    // All he does while Claude works is raise a finger and put it down again.
+    // What the work is shows over the pan.
+    const still = figure(eyes, frame(tick, 4, [true, false]))
+    // The egg drops into the empty pan first.
+    if (tick < CRACK_TICKS) return { ...still, steam: ' o ', mark: 'claude', pan: PAN }
     const pan = `\\${yolk(tick)}/`
-    const top = '   '
     switch (doing?.activity) {
-      // Mulling it over, glancing about: thought dots rise from the pan.
+      // Thought dots rise from the pan.
       case 'thinking':
-        return { ...figure(glance(), 'down', 'down'), top, steam: frame(tick, 4, ['   ', '·  ', '·· ', '···']), mark: 'claude', pan }
-      // The recipe held up and read across.
+        return { ...still, steam: frame(tick, 4, ['   ', '·  ', '·· ', '···']), mark: 'claude', pan }
+      // The recipe, read across.
       case 'reading':
-        return { ...figure(eyes(), 'down', 'up'), top, steam: frame(tick, 4, ['≡  ', ' ≡ ', '  ≡', ' ≡ ']), mark: 'suggestion', pan }
-      // Scuttling on the spot by a shell prompt, its cursor blinking.
+        return { ...still, steam: frame(tick, 4, ['≡  ', ' ≡ ', '  ≡', ' ≡ ']), mark: 'suggestion', pan }
+      // A shell prompt, its cursor blinking.
       case 'running':
-        return {
-          ...figure(eyes(), 'up', 'down', frame(tick, 2, [false, true])),
-          top, steam: frame(tick, 4, ['>_ ', '>  ']), mark: 'success', pan,
-        }
+        return { ...still, steam: frame(tick, 4, ['>_ ', '>  ']), mark: 'success', pan }
       case 'browsing':
-        return { ...figure(eyes(), 'down', 'up'), top, steam: ` ${frame(tick, 2, GLOBE)} `, mark: 'ide', pan }
-      // Tapping his feet and glancing about while other cooks work, how many
-      // beside the spinner.
+        return { ...still, steam: ` ${frame(tick, 2, GLOBE)} `, mark: 'ide', pan }
+      // Other cooks at work, how many beside the spinner.
       case 'delegating':
       case 'waiting':
-        return {
-          ...figure(glance(), 'down', 'down', frame(tick, 4, [false, true])),
-          top, steam: `${frame(tick, 2, SPIN)}${count(doing.agents)}`, mark: 'merged', pan,
-        }
-      // Both arms up, eyes wide: he needs an answer.
+        return { ...still, steam: `${frame(tick, 2, SPIN)}${count(doing.agents)}`, mark: 'merged', pan }
+      // He needs an answer.
       case 'asking':
-        return { ...figure(eyes('wide'), 'up', 'up'), top, steam: frame(tick, 4, [' ! ', '   ']), mark: 'warning', pan }
+        return { ...still, steam: frame(tick, 4, [' ! ', '   ']), mark: 'warning', pan }
     }
-    // One arm up, then the other: the flip.
-    const isLeft = Math.floor(tick / 4) % 2 === 0
 
-    return { ...figure(eyes(), isLeft ? 'up' : 'down', isLeft ? 'down' : 'up'), top, steam: frame(tick, 2, SIZZLE), mark: 'claude', pan }
+    return { ...still, steam: frame(tick, 2, SIZZLE), mark: 'claude', pan }
   }
 
-  // The egg held up when the turn is done; eyes cast down when it was cut short.
+  // Standing by the egg, done (✓) or cut short (x).
   if (served !== null) {
     const isDone = served.mark === '✓'
-    return {
-      ...figure(isDone ? eyes() : 'down', 'down', isDone ? 'up' : 'down'),
-      top: '   ', steam: ` ${served.mark} `, mark: isDone ? 'success' : 'error', pan: `\\${served.yolk}/`,
-    }
+    return { ...figure(eyes), steam: ` ${served.mark} `, mark: isDone ? 'success' : 'error', pan: `\\${served.yolk}/` }
   }
 
-  return { ...figure(eyes(), 'down', 'down'), top: '   ', steam: '   ', mark: 'claude', pan: PAN }
+  return { ...figure(eyes), steam: '   ', mark: 'claude', pan: PAN }
 }
 
 // One group per line of the section: the figures, then the project.
@@ -254,7 +223,7 @@ let lines = ''
 
 function poseOf(n: number) {
   const one = mascot({ isWorking: true, tick: n, isBlinking: false, served: null, doing: doingNow })
-  return `${one.head}${one.body}${one.legs}${one.top}${one.steam}${one.pan}${one.mark}`
+  return `${one.head}${one.body}${one.steam}${one.pan}${one.mark}`
 }
 
 function tickOn($: EngineInterface) {
@@ -544,14 +513,10 @@ export const register: Register = (on, options) => {
             <Box flexDirection="column" marginLeft={GAP} flexShrink={0}>
               <Text>
                 <Text color="claude">{clawd.head}</Text>
-                <Text color={clawd.mark}>{' ' + clawd.top}</Text>
-              </Text>
-              <Text>
-                <Text color="claude">{clawd.body}</Text>
                 <Text color={clawd.mark}>{' ' + clawd.steam}</Text>
               </Text>
               <Text>
-                <Text color="claude">{clawd.legs}</Text>
+                <Text color="claude">{clawd.body}</Text>
                 <Text dimColor>{' ' + clawd.pan[0]}</Text>
                 <Text color="yellow">{clawd.pan[1]}</Text>
                 <Text dimColor>{clawd.pan[2]}</Text>

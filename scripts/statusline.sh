@@ -4,9 +4,19 @@
 # Reads the session JSON on stdin. Needs bash, jq and git; gh or glab for
 # the MR/pipeline status. Works on Linux and macOS.
 
-input=$(cat)
-j() { jq -r "$1 // empty" <<<"$input" 2>/dev/null; }
+# One jq for every field, joined by the unit separator: a whitespace IFS would
+# fold the empty fields of the ones missing. Each process costs; the bar is
+# drawn every few seconds, so the script starts as few as it can.
+US=$'\x1f'
+IFS=$US read -r model root cur cwd_field ctx tok p_five_hour r_five_hour p_seven_day r_seven_day < <(
+  jq -r --arg us "$US" '[.model.display_name, .workspace.project_dir, .workspace.current_dir, .cwd,
+    .context_window.used_percentage, .context_window.total_input_tokens,
+    .rate_limits.five_hour.used_percentage, .rate_limits.five_hour.resets_at,
+    .rate_limits.seven_day.used_percentage, .rate_limits.seven_day.resets_at]
+    | map(if . == null then "" else tostring end) | join($us)' 2>/dev/null)
+now=${EPOCHSECONDS:-$(date +%s)}
 
+LAYOUT=${STATUSLINE_LAYOUT:-wide}
 R=$'\e[0m'; DIM=$'\e[2m'; B=$'\e[1m'
 CY=$'\e[36m'; MG=$'\e[35m'; BL=$'\e[34m'; GR=$'\e[32m'; YL=$'\e[33m'; RD=$'\e[31m'
 SEP="  ${DIM}·${R}  "
@@ -38,17 +48,17 @@ dur() {
 CACHE_DIR="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}"
 cached() {
   local file=$1 max=$2 age; shift 2
-  age=$(( $(date +%s) - $(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file" 2>/dev/null || echo 0) ))
+  age=$(( now - $(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file" 2>/dev/null || echo 0) ))
   if ((age >= max)); then
     touch "$file" 2>/dev/null
     (out=$("$@" 2>/dev/null); printf '%s' "$out" > "$file") </dev/null >/dev/null 2>&1 &
     disown
   fi
-  [[ -r $file ]] && cat "$file"
+  [[ -r $file ]] && printf '%s' "$(<"$file")"
 }
 
 # ---------- model, repo, time ----------
-model=$(j '.model.display_name'); [[ -z $model ]] && model="Claude"
+[[ -z $model ]] && model="Claude"
 # $.session.model() answers the id (/model's own spelling): `claude-opus-5` is
 # what arrives, `Opus 5` is what belongs on the bar.
 if [[ $model == claude-* ]]; then
@@ -60,25 +70,35 @@ if [[ $model == claude-* ]]; then
 fi
 # The project the session belongs to (a shell cd doesn't move it); if that isn't
 # a repo (a folder of several projects), fall back to the current directory.
-root=$(j '.workspace.project_dir'); cur=$(j '.workspace.current_dir'); [[ -z $cur ]] && cur=$(j '.cwd')
+[[ -z $cur ]] && cur=$cwd_field
 cwd=${root:-${cur:-$PWD}}
-if [[ -n $cur ]] && ! git -C "$cwd" rev-parse --git-dir >/dev/null 2>&1; then cwd=$cur; fi
+
+# The repo's top, its git dir and the common one, in one call; then the branch,
+# its sync, the changes and the stash from one status. Two git runs, not eight.
+repo_paths() { git -C "$1" rev-parse --path-format=absolute --show-toplevel --absolute-git-dir --git-common-dir 2>/dev/null; }
+paths=$(repo_paths "$cwd")
+if [[ -z $paths && -n $cur && $cur != "$cwd" ]]; then cwd=$cur; paths=$(repo_paths "$cwd"); fi
 
 repo_part=""
-if top=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null); then
-  branch=$(git -C "$cwd" --no-optional-locks branch --show-current 2>/dev/null)
-  [[ -z $branch ]] && branch=$(git -C "$cwd" --no-optional-locks rev-parse --short HEAD 2>/dev/null)
-  dirty=$(git -C "$cwd" --no-optional-locks status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+if [[ -n $paths ]]; then
+  { read -r top; read -r gd; read -r common; } <<<"$paths"
+  branch=""; oid=""; dirty=0; stash=""; sync=""; ahead=0; behind=0
+  while IFS= read -r line; do
+    case $line in
+      '# branch.oid '*) oid=${line#'# branch.oid '} ;;
+      '# branch.head '*) branch=${line#'# branch.head '} ;;
+      '# branch.ab '*) read -r _ _ ahead behind <<<"$line"; ahead=${ahead#+}; behind=${behind#-} ;;
+      '# stash '*) stash=${line#'# stash '} ;;
+      '#'*) ;;
+      *) ((dirty++)) ;;
+    esac
+  done < <(git -C "$cwd" --no-optional-locks status --porcelain=v2 --branch --show-stash 2>/dev/null)
+  [[ $branch == '(detached)' ]] && branch=$(git -C "$cwd" --no-optional-locks rev-parse --short HEAD 2>/dev/null)
   # Commits not yet pushed (↑) and not yet pulled (↓); nothing without an upstream.
-  sync=""
-  if read -r behind ahead < <(git -C "$cwd" --no-optional-locks rev-list --left-right --count '@{upstream}...HEAD' 2>/dev/null); then
-    ((ahead > 0)) && sync+="↑${ahead}"
-    ((behind > 0)) && sync+="${sync:+ }↓${behind}"
-  fi
-  stash=$(git -C "$cwd" --no-optional-locks rev-list --walk-reflogs --count refs/stash 2>/dev/null)
+  ((ahead > 0)) && sync+="↑${ahead}"
+  ((behind > 0)) && sync+="${sync:+ }↓${behind}"
   # An operation git stopped partway (conflicts, `edit` in a rebase) is easy to
   # forget; the git dir is the worktree's own, so this is per checkout.
-  gd=$(git -C "$cwd" rev-parse --absolute-git-dir 2>/dev/null)
   state=""
   if [[ -d $gd/rebase-merge ]]; then
     state="rebasing $(<"$gd/rebase-merge/msgnum")/$(<"$gd/rebase-merge/end")"
@@ -91,10 +111,9 @@ if top=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null); then
   fi
   # A linked worktree, not the main checkout: name it, so edits land knowingly.
   worktree=""
-  common=$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
-  [[ -n $common && $gd != "$common" ]] && worktree=$(basename "$top")
-  parent=$(basename "$(dirname "$top")")
-  repo_part="${DIM}${parent}/${R}${B}${BL}$(basename "$top")${R}  ${MG}⎇ ${branch}${R}"
+  [[ -n $common && $gd != "$common" ]] && worktree=${top##*/}
+  parent=${top%/*}; parent=${parent##*/}
+  repo_part="${DIM}${parent}/${R}${B}${BL}${top##*/}${R}  ${MG}⎇ ${branch}${R}"
   ((dirty > 0)) && repo_part+=" ${YL}● ${dirty} changed${R}"
   [[ -n $sync ]] && repo_part+=" ${GR}${sync}${R}"
   ((${stash:-0} > 0)) && repo_part+=" ${DIM}≡${stash}${R}"
@@ -150,8 +169,10 @@ review_status() {
 }
 review=""
 if [[ -n ${top:-} && -n ${branch:-} ]]; then
-  key=$(printf '%s' "$top:$branch" | cksum | cut -d' ' -f1)
-  review=$(cd "$top" && cached "$CACHE_DIR/claude-statusline-review.$(id -u).$key" 60 review_status "$branch")
+  # A cache file per checkout and branch, named by a hash bash makes itself.
+  key=5381; id="$top:$branch"
+  for ((i = 0; i < ${#id}; i++)); do printf -v c '%d' "'${id:i:1}"; key=$(( (key * 33 + c) % 4294967296 )); done
+  review=$(cd "$top" && cached "$CACHE_DIR/claude-statusline-review.$UID.$key" 60 review_status "$branch")
 fi
 if [[ -n $review ]]; then
   review_kind=${review%% *}; review_text=${review#* }
@@ -162,35 +183,37 @@ fi
 # ---------- usage ----------
 usage=()
 line_usage=()
-ctx=$(j '.context_window.used_percentage')
 if [[ -n $ctx ]]; then
   # The tokens too: on a large window a small percent is still a lot.
-  tok=$(j '.context_window.total_input_tokens'); tok=${tok%.*}
+  tok=${tok%.*}
   ktok=""
   if [[ -n $tok ]]; then
-    ((tok >= 1000000)) && ktok=$(awk -v t="$tok" 'BEGIN{printf "%.1fM", t/1000000}') || ktok="$((tok / 1000))k"
+    # Millions to one place, rounded, in whole-number arithmetic.
+    t=$(( (tok + 50000) / 100000 ))
+    ((tok >= 1000000)) && ktok="$((t / 10)).$((t % 10))M" || ktok="$((tok / 1000))k"
   fi
-  usage+=("$(meter CTX "$ctx")${ktok:+ ${DIM}${ktok}${R}}")
+  [[ $LAYOUT != parts ]] && usage+=("$(meter CTX "$ctx")${ktok:+ ${DIM}${ktok}${R}}")
   line_usage+=("figure	CTX ${ctx%.*}%${ktok:+ $ktok}")
 fi
-now=$(date +%s)
 for win in "five_hour:5h limit" "seven_day:7d limit"; do
   key=${win%%:*}; label=${win##*:}
-  p=$(j ".rate_limits.${key}.used_percentage")
+  p_var=p_$key; r_var=r_$key; p=${!p_var}
   [[ -z $p ]] && continue
   # The 7d window is noise until it is half used.
   [[ $key == seven_day ]] && ((${p%.*} < 50)) && continue
-  reset=$(j ".rate_limits.${key}.resets_at"); reset=${reset%.*}
-  s=$(meter "$label" "$p")
-  [[ -n $reset ]] && ((reset > now)) && s+=" ${DIM}↻${R} $(dur $((reset - now)))"
-  usage+=("$s")
+  reset=${!r_var}; reset=${reset%.*}
+  if [[ $LAYOUT != parts ]]; then
+    s=$(meter "$label" "$p")
+    [[ -n $reset ]] && ((reset > now)) && s+=" ${DIM}↻${R} $(dur $((reset - now)))"
+    usage+=("$s")
+  fi
   s="${label%% *} ${p%.*}%"
   [[ -n $reset ]] && ((reset > now)) && s+=" ↻ $(dur $((reset - now)))"
   line_usage+=("figure	$s")
 done
 
 # ---------- CPU / memory ----------
-cache="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/claude-statusline-cpu.$(id -u)"
+cache="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/claude-statusline-cpu.$UID"
 cpu=""; mem=""
 if [[ -r /proc/stat ]]; then
   # Diff against the previous sample; first run takes a quick 0.2s sample.
@@ -203,8 +226,10 @@ if [[ -r /proc/stat ]]; then
   fi
   echo "$busy $total" > "$cache" 2>/dev/null
   dt=$((total - ptotal)); ((dt > 0)) && cpu=$(( 100 * (busy - pbusy) / dt ))
-  mt=$(awk '/^MemTotal:/{print $2}' /proc/meminfo)
-  ma=$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)
+  mt=""; ma=""
+  while read -r k v _; do
+    case $k in MemTotal:) mt=$v ;; MemAvailable:) ma=$v; break ;; esac
+  done < /proc/meminfo
   [[ -n $mt && -n $ma ]] && mem="$((mt - ma)) $mt"   # KiB
 elif [[ $(uname) == Darwin ]]; then
   ncpu=$(sysctl -n hw.ncpu)
@@ -223,7 +248,9 @@ if [[ -n $mem ]]; then
   read -r mu mt <<<"$mem"; mp=$((100 * mu / mt))
 fi
 if [[ -n $mem ]] && ((mp >= SYS_MIN)); then
-  sys+=("$(kv RAM "$(pct_color "$mp")$(awk -v u="$mu" -v t="$mt" 'BEGIN{printf "%.1f / %.0f GB", u/1048576, t/1048576}')")")
+  # GiB from KiB: used to one place, total whole, rounded.
+  u=$(( (mu * 10 + 524288) / 1048576 )); t=$(( (mt + 524288) / 1048576 ))
+  sys+=("$(kv RAM "$(pct_color "$mp")$((u / 10)).$((u % 10)) / ${t} GB")")
   line_sys+=("figure	RAM ${mp}%")
 fi
 
@@ -233,7 +260,7 @@ fi
 # No escapes, and nothing cut: each part is printed whole as `kind<TAB>text`,
 # the kind saying how to colour it. A blank line divides the groups, one line
 # of the caller's each: the figures, then the project.
-if [[ ${STATUSLINE_LAYOUT:-wide} == parts ]]; then
+if [[ $LAYOUT == parts ]]; then
   line_repo=("path	${cwd/#$HOME/\~}")
   # Warnings right after the path, so a short line still has room for them.
   [[ -n ${state:-} ]] && line_repo+=("alert	⚠ ${state}")

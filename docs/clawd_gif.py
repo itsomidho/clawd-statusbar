@@ -49,7 +49,7 @@ SIZZLE = ["~·~", "·~·", "~ ~", " ~ "]
 
 
 def yolk(tick):
-    ms = tick * 150
+    ms = (tick - tick % 2) * 150
     return "●" if ms >= 30_000 else "◉" if ms >= 10_000 else "o"
 
 
@@ -85,21 +85,21 @@ def mascot(working, tick, blink, served, doing=None, agents=0):
             return (*figure(face(blink, "•", "o"), False, True), " o ", CLAUDE, "_")
         y = yolk(tick)
         if doing == "thinking":
-            return (*figure(face(blink, "·"), False, False), loop(tick, 3, ["   ", "·  ", "·· ", "···"]), CLAUDE, y)
+            return (*figure(face(blink, "·"), False, False), loop(tick, 4, ["   ", "·  ", "·· ", "···"]), CLAUDE, y)
         if doing == "reading":
-            return (*figure(smile, False, True), loop(tick, 3, ["≡  ", " ≡ ", "  ≡", " ≡ "]), SUGGESTION, y)
+            return (*figure(smile, False, True), loop(tick, 4, ["≡  ", " ≡ ", "  ≡", " ≡ "]), SUGGESTION, y)
         if doing == "running":
-            return (*figure(" >ω< ", True, False, loop(tick, 2, [False, True])), loop(tick, 3, [">_ ", ">  "]), GREEN, y)
+            return (*figure(" >ω< ", True, False, loop(tick, 2, [False, True])), loop(tick, 4, [">_ ", ">  "]), GREEN, y)
         if doing == "browsing":
             return (*figure(smile, False, True), f" {loop(tick, 2, GLOBE)} ", IDE, y)
         if doing in ("delegating", "waiting"):
             count = "  " if agents == 0 else "9+" if agents > 9 else f"×{agents}"
-            look = face(blink, "•", "ω", loop(tick, 6, [0, -1, 0, 1]))
-            return (*figure(look, False, False, loop(tick, 3, [False, True])), loop(tick, 1, SPIN) + count, MERGED, y)
+            look = face(blink, "•", "ω", loop(tick, 8, [0, -1, 0, 1]))
+            return (*figure(look, False, False, loop(tick, 4, [False, True])), loop(tick, 2, SPIN) + count, MERGED, y)
         if doing == "asking":
-            return (*figure(face(blink, "•", "o"), True, True), loop(tick, 3, [" ! ", "   "]), WARNING, y)
-        left = (tick // 2) % 2 == 0
-        return (*figure(smile, left, not left), SIZZLE[tick % 4], CLAUDE, y)
+            return (*figure(face(blink, "•", "o"), True, True), loop(tick, 4, [" ! ", "   "]), WARNING, y)
+        left = (tick // 4) % 2 == 0
+        return (*figure(smile, left, not left), loop(tick, 2, SIZZLE), CLAUDE, y)
     if served:
         mark, y = served
         done = mark == "✓"

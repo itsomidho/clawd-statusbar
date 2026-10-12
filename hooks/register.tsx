@@ -75,7 +75,9 @@ export function activityOf(tool: string) {
   return ACTIVITIES[tool] ?? (BROWSER.test(tool) ? 'browsing' : 'working')
 }
 
-// One frame of a loop, `every` ticks to a frame.
+// One frame of a loop, `every` ticks to a frame. Every loop steps on a beat of
+// two ticks (or four), so his poses change together and the bar is redrawn at
+// most every other tick: a tick that changes nothing draws nothing.
 function frame<T>(tick: number, every: number, frames: readonly T[]) {
   return frames[Math.floor(tick / every) % frames.length]!
 }
@@ -97,7 +99,8 @@ export function caption(doing: Doing): [string, string] {
 }
 
 export function yolk(tick: number) {
-  const ms = tick * TICK_MS
+  // On the beat too: counted from the even tick.
+  const ms = (tick - (tick % 2)) * TICK_MS
   return YOLKS.find(([from]) => ms >= from)![1]
 }
 
@@ -134,15 +137,15 @@ export function mascot(state: {
     switch (doing?.activity) {
       // Mulling it over, eyes small: thought dots rise from the pan.
       case 'thinking':
-        return { ...figure(face(isBlinking, '·'), 'down', 'down'), steam: frame(tick, 3, ['   ', '·  ', '·· ', '···']), mark: 'claude', pan }
+        return { ...figure(face(isBlinking, '·'), 'down', 'down'), steam: frame(tick, 4, ['   ', '·  ', '·· ', '···']), mark: 'claude', pan }
       // The recipe held up and read across.
       case 'reading':
-        return { ...figure(smile, 'down', 'up'), steam: frame(tick, 3, ['≡  ', ' ≡ ', '  ≡', ' ≡ ']), mark: 'suggestion', pan }
+        return { ...figure(smile, 'down', 'up'), steam: frame(tick, 4, ['≡  ', ' ≡ ', '  ≡', ' ≡ ']), mark: 'suggestion', pan }
       // Running on the spot by a shell prompt, its cursor blinking.
       case 'running':
         return {
           ...figure(' >ω< ', 'up', 'down', frame(tick, 2, [false, true])),
-          steam: frame(tick, 3, ['>_ ', '>  ']), mark: 'success', pan,
+          steam: frame(tick, 4, ['>_ ', '>  ']), mark: 'success', pan,
         }
       case 'browsing':
         return { ...figure(smile, 'down', 'up'), steam: ` ${frame(tick, 2, GLOBE)} `, mark: 'ide', pan }
@@ -150,20 +153,20 @@ export function mascot(state: {
       // beside the spinner.
       case 'delegating':
       case 'waiting': {
-        const glance = frame(tick, 6, [0, -1, 0, 1] as const)
+        const glance = frame(tick, 8, [0, -1, 0, 1] as const)
         return {
-          ...figure(face(isBlinking, '•', 'ω', glance), 'down', 'down', frame(tick, 3, [false, true])),
-          steam: `${frame(tick, 1, SPIN)}${count(doing.agents)}`, mark: 'merged', pan,
+          ...figure(face(isBlinking, '•', 'ω', glance), 'down', 'down', frame(tick, 4, [false, true])),
+          steam: `${frame(tick, 2, SPIN)}${count(doing.agents)}`, mark: 'merged', pan,
         }
       }
       // Both paws up: he needs an answer.
       case 'asking':
-        return { ...figure(face(isBlinking, '•', 'o'), 'up', 'up'), steam: frame(tick, 3, [' ! ', '   ']), mark: 'warning', pan }
+        return { ...figure(face(isBlinking, '•', 'o'), 'up', 'up'), steam: frame(tick, 4, [' ! ', '   ']), mark: 'warning', pan }
     }
     // One paw up, then the other: the flip.
-    const isLeft = Math.floor(tick / 2) % 2 === 0
+    const isLeft = Math.floor(tick / 4) % 2 === 0
 
-    return { ...figure(smile, isLeft ? 'up' : 'down', isLeft ? 'down' : 'up'), steam: SIZZLE[tick % SIZZLE.length]!, mark: 'claude', pan }
+    return { ...figure(smile, isLeft ? 'up' : 'down', isLeft ? 'down' : 'up'), steam: frame(tick, 2, SIZZLE), mark: 'claude', pan }
   }
 
   // Beaming with the egg held up, or sorry it was cut short.
@@ -210,16 +213,37 @@ let agentIds: string[] = []
 const inFlight = new Map<string, string[]>()
 let lastLoop = MAIN
 let isDone = true
+let doingNow = IDLE
 let shown = JSON.stringify(IDLE)
+// The animation's own count, and the pose last drawn: a tick that would draw
+// him the same as the last one writes nothing, so the bar is not redrawn.
+let ticks = 0
+let drawn = ''
+// The bar's lines as last drawn, so a refresh that changed nothing redraws nothing.
+let lines = ''
+
+function poseOf(n: number) {
+  const one = mascot({ isWorking: true, tick: n, isBlinking: false, served: null, doing: doingNow })
+  return `${one.head}${one.body}${one.steam}${one.pan}${one.mark}`
+}
 
 function tickOn($: EngineInterface) {
   isAnimating = true
-  animation = $.clock.every(TICK_MS, () => void update($, tick, n => (n ?? 0) + 1).catch(() => {}))
+  animation = $.clock.every(TICK_MS, () => {
+    ticks += 1
+    const pose = poseOf(ticks)
+    if (pose === drawn) return
+    drawn = pose
+    const at = ticks
+    void update($, tick, () => at).catch(() => {})
+  })
 }
 
 // A fresh egg each turn: the count starts over and the last one is cleared.
 async function animate($: EngineInterface) {
   animation?.cancel()
+  ticks = 0
+  drawn = poseOf(0)
   await update($, tick, () => 0)
   await update($, plated, () => null)
   tickOn($)
@@ -241,6 +265,7 @@ export function doingOf(isMain: boolean, agents: readonly string[], tools: Reado
 
 async function publish($: EngineInterface) {
   const doing = doingOf(isMainWorking, agentIds, inFlight, lastLoop)
+  doingNow = doing
   const key = JSON.stringify(doing)
   if (key !== shown) {
     shown = key
@@ -266,7 +291,7 @@ async function serve($: EngineInterface, isDone: boolean) {
   animation = undefined
   isAnimating = false
   const serving = ++servings
-  const egg = { mark: isDone ? '✓' : 'x', yolk: yolk(await read($, tick)) }
+  const egg = { mark: isDone ? '✓' : 'x', yolk: yolk(ticks) }
   await update($, plated, () => egg)
   // Put away unless a later turn has served its own since.
   $.clock.after(SERVED_MS, () => {
@@ -314,6 +339,9 @@ async function refresh($: EngineInterface) {
   if (groups.length === 0) throw new Error(`statusline.sh wrote nothing (exit ${run.exitCode})`)
   // /statusbar may have turned it off while the script ran.
   if (isOff) return
+  const key = JSON.stringify(groups)
+  if (key === lines) return
+  lines = key
   await update($, bar, () => groups)
 }
 
@@ -356,7 +384,8 @@ export const register: Register = (on, options) => {
     // An earlier build of this plugin pinned a $.ui.status line; the engine
     // keeps one across a reload, so it goes here.
     $.ui.status(undefined)
-    await show($)
+    // The first figures are drawn when the script answers; the session goes on.
+    void show($).catch(() => {})
     // A tick that lands while the session is going away is nobody's error.
     $.clock.every(REFRESH_MS, () => void show($).catch(() => {}))
     $.clock.every(AGENTS_EVERY_MS, () => void countAgents($).catch(() => {}))
@@ -374,8 +403,8 @@ export const register: Register = (on, options) => {
   on('turn.start', async ($, e, next) => {
     isMainWorking = true
     inFlight.delete(MAIN)
-    await animate($)
-    await publish($)
+    // Set off the animation without holding the turn for it.
+    void animate($).then(() => publish($)).catch(() => {})
     return next(e)
   })
 
@@ -390,7 +419,7 @@ export const register: Register = (on, options) => {
       agentIds = agentIds.filter(id => id !== e.agentId)
       inFlight.delete(e.agentId)
     }
-    await countAgents($).catch(() => publish($))
+    void countAgents($).catch(() => publish($)).catch(() => {})
     return next(e)
   })
 
@@ -414,6 +443,7 @@ export const register: Register = (on, options) => {
   on('command.run', { command: COMMAND }, async $ => {
     isOff = !isOff
     if (isOff) {
+      lines = ''
       await update($, bar, () => [])
       return { text: 'Status line off. /statusbar brings it back.' }
     }
@@ -425,27 +455,29 @@ export const register: Register = (on, options) => {
   // The engine's line first, so this row falls under the footer: the last row
   // inside the box.
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-    const groups = await read($, bar)
-    const engine = await next(e)
-    if (groups.length === 0) return engine
-
     const columns = e.viewport?.columns ?? FALLBACK_COLUMNS
     const width = columns - INDENT - TRAIL
     const hasMascot = config.hasMascot && columns >= MASCOT_MIN_COLUMNS
     const hasCaption = hasMascot && columns >= CAPTION_MIN_COLUMNS
+    // Each read is a trip to the host, so they go together, beside the engine's
+    // own line; his frames are read only while he is drawn.
+    const [groups, engine, doing, at, isBlinking, served] = await Promise.all([
+      read($, bar), next(e), read($, busy),
+      hasMascot ? read($, tick) : 0,
+      hasMascot ? read($, blinking) : false,
+      hasMascot ? read($, plated) : null,
+    ])
+    if (groups.length === 0) return engine
+
     const room = width - FRAME - (hasMascot ? MASCOT_WIDTH + GAP : 0) - (hasCaption ? CAPTION_WIDTH + GAP : 0)
     const rows = groups.map(group => fit(group, room)).filter(row => row.length > 0)
     if (rows.length === 0) return engine
 
     const { Box, Text } = $.ui.resolve(e)
-    const doing = await read($, busy)
     const isWorking = e.props.isWorking || doing.isBusy
     const clawd = hasMascot
       ? mascot({
-          isWorking,
-          tick: await read($, tick),
-          isBlinking: await read($, blinking),
-          served: await read($, plated),
+          isWorking, tick: at, isBlinking, served,
           doing: e.props.isWorking && !doing.isBusy ? undefined : doing,
         })
       : undefined

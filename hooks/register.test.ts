@@ -68,6 +68,9 @@ function footer($: Engine, columns = 90, isWorking = false) {
 async function start($: Engine, on: On, ran: Record<string, string>[] = []) {
   engine(on, ran)
   await $.session.start({ cwd: '/home/dev/Documents/Projects', surface: 'terminal', isInteractive: true })
+  // The first figures come in the background, so the session is not held for them.
+  for (let i = 0; i < 1000 && ran.length === 0; i++) await Promise.resolve()
+  for (let i = 0; i < 100; i++) await Promise.resolve()
 }
 
 test('fit joins in order and skips a part that overflows', () => {
@@ -176,13 +179,16 @@ test('a turn cracks the egg in, then fries it with the yolk setting', () => {
   // The egg falls first, the pan still empty.
   expect(pose({ isWorking: true, tick: 0 })).toMatchObject({ steam: ' o ', pan: '\\_/' })
   // Then it sizzles, flipped from one side and the other.
-  const frying = [4, 5, 6, 7].map(tick => pose({ isWorking: true, tick }))
+  const frying = [4, 6, 8, 10].map(tick => pose({ isWorking: true, tick }))
   expect(frying.every(one => one.pan === '\\o/' && one.steam.includes('~'))).toBe(true)
   expect(new Set(frying.map(one => one.head)).size).toBe(2)
+  expect(new Set(frying.map(one => one.steam)).size).toBeGreaterThan(1)
   // Runny, set, then hard as the turn runs on.
   expect(yolk(0)).toBe('o')
-  expect(yolk(10_000 / 150)).toBe('◉')
-  expect(yolk(30_000 / 150)).toBe('●')
+  // The first beats past 10 and 30 seconds (a tick is 150 ms).
+  expect(yolk(66)).toBe('o')
+  expect(yolk(68)).toBe('◉')
+  expect(yolk(200)).toBe('●')
 })
 
 test('the turn ends with the egg held up, done or cut short', () => {
@@ -339,4 +345,14 @@ test('Clawd keeps working while a background agent runs', async ($, on) => {
   const done = JSON.stringify(await (await footer($, 120, false)).drawn())
   expect(done).toContain(' ✓ ')
   expect(done).not.toContain('waiting')
+})
+
+test('his poses change on a beat of two ticks, never on the odd ones', () => {
+  const kinds = ['thinking', 'reading', 'editing', 'running', 'browsing', 'delegating', 'waiting', 'asking', 'working']
+  for (const activity of kinds) {
+    const at = (tick: number) =>
+      JSON.stringify(pose({ isWorking: true, tick, doing: { activity, tool: '', agents: 2, isBusy: true } }))
+    // From the crack on, an odd tick looks just like the even one before it.
+    for (let tick = 5; tick < 300; tick += 2) expect(at(tick)).toBe(at(tick - 1))
+  }
 })

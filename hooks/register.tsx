@@ -6,6 +6,7 @@ import type { Doing, Served } from '../types'
 // The script ships with the plugin and is the one place the figures live;
 // `parts` hands them over plain, one per line, in reading order.
 const SCRIPT = 'scripts/statusline.sh'
+const INSTALLER = 'scripts/install-tools.sh'
 const REFRESH_MS = 5000
 const COMMAND = 'statusbar'
 const SEP = ' · '
@@ -285,12 +286,24 @@ async function serve($: EngineInterface, isDone: boolean) {
   })
 }
 
+// Fetches the tools the status line needs that aren't installed, in the
+// background; says which arrived, and redraws the bar with them.
+async function installTools($: EngineInterface) {
+  const run = await $.process.run(['bash', `${$.plugin.root}/${INSTALLER}`], { timeoutMs: 600_000 })
+  const installed = run.stdout.split('\n').filter(one => one !== '')
+  if (installed.length === 0) return
+  const logins = installed.filter(one => one === 'gh' || one === 'glab').map(one => `${one} auth login`)
+  $.ui.toast(`Clawd installed ${installed.join(', ')}`
+    + (logins.length > 0 ? `; run ${logins.join(' / ')} for the MR status` : ''))
+  await show($)
+}
+
 async function refresh($: EngineInterface) {
   const [usage, model, cwd, root] = await Promise.all([
     $.session.usage(), $.session.model(), $.session.cwd(), $.session.root(),
   ])
   const now = await $.clock.now()
-  const rate: Record<string, unknown> = {}
+  const rate: Record<string, { used_percentage: number; resets_at?: number }> = {}
   for (const r of usage.rateLimits) {
     rate[r.kind] = {
       used_percentage: r.percentUsed,
@@ -308,9 +321,16 @@ async function refresh($: EngineInterface) {
     },
     rate_limits: rate,
   }
+  // The fields the script reads, in its order and joined by the unit separator,
+  // so it doesn't need jq to pick them out of the JSON.
+  const fields = [
+    model, root, cwd, cwd, usage.context.percent, usage.context.tokens,
+    rate.five_hour?.used_percentage, rate.five_hour?.resets_at,
+    rate.seven_day?.used_percentage, rate.seven_day?.resets_at,
+  ].map(one => (one ?? '').toString()).join('\x1f')
   const run = await $.process.run(['bash', `${$.plugin.root}/${SCRIPT}`], {
     stdin: JSON.stringify(input),
-    env: { STATUSLINE_LAYOUT: 'parts' },
+    env: { STATUSLINE_LAYOUT: 'parts', STATUSLINE_FIELDS: fields },
     timeoutMs: 4000,
   })
   // Each line is `kind<TAB>text`; a line without a tab is its own text, dim.
@@ -372,6 +392,8 @@ export const register: Register = (on, options) => {
     $.ui.status(undefined)
     // The first figures are drawn when the script answers; the session goes on.
     void show($).catch(() => {})
+    // jq, gh and glab, fetched once where the system lacks them.
+    void installTools($).catch(() => {})
     // A tick that lands while the session is going away is nobody's error.
     $.clock.every(REFRESH_MS, () => void show($).catch(() => {}))
     $.clock.every(AGENTS_EVERY_MS, () => void countAgents($).catch(() => {}))

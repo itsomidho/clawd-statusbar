@@ -21,10 +21,14 @@ const COMMAND = {
 
 // The session's agents as $.agent.list answers them; a test fills it.
 let agents: { id: string; description: string; type: string; status: 'running' | 'completed' }[] = []
+// What the tool installer prints (the tools it fetched), and the toasts raised.
+let installed = ''
+let toasts: string[] = []
 
 // Stands in for the engine under the plugin: every $ call session.start makes.
 function engine(on: On, ran: Record<string, string>[]) {
   agents = []
+  toasts = []
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('clock.now', () => ({ value: 1_760_000_742_000 }))
   on('clock.every', () => ({ value: undefined }))
@@ -42,10 +46,11 @@ function engine(on: On, ran: Record<string, string>[]) {
     },
   }))
   on('process.run', (_$, e) => {
-    ran.push({ ...e.init?.env, argv: e.argv.join(' ') })
+    const isInstaller = e.argv.join(' ').endsWith('install-tools.sh')
+    if (!isInstaller) ran.push({ ...e.init?.env, argv: e.argv.join(' ') })
     return {
       value: {
-        exitCode: 0, stdout: OUT, stderr: '',
+        exitCode: 0, stdout: isInstaller ? installed : OUT, stderr: '',
         isStdoutTruncated: false, isStderrTruncated: false,
       },
     }
@@ -54,6 +59,10 @@ function engine(on: On, ran: Record<string, string>[]) {
   on('turn.start', (_$, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_$, e) => ({ text: e.answer }))
   on('ui.status', () => ({ value: undefined }))
+  on('ui.toast', (_$, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
   on('ui.render', () => ({ type: 'Text', props: { dimColor: true }, children: [HINT] }))
 }
 
@@ -282,6 +291,27 @@ test('the script is the one shipped in the plugin', async ($, on) => {
   await start($, on, ran)
 
   expect(ran[0]?.argv).toMatch(/^bash \/.+\/scripts\/statusline\.sh$/)
+})
+
+test('missing tools are fetched once, and said so', async ($, on) => {
+  installed = 'jq\ngh\n'
+  const ran: Record<string, string>[] = []
+  await start($, on, ran)
+  installed = ''
+
+  expect(toasts).toEqual(['Clawd installed jq, gh; run gh auth login for the MR status'])
+  // The bar is drawn again with them; the fields reach it without jq.
+  expect(ran.length).toBeGreaterThan(1)
+  expect(ran[0]?.STATUSLINE_FIELDS?.split('\x1f')).toEqual([
+    'claude-opus-5', '/home/dev/Documents/Projects', '/home/dev/Documents/Projects',
+    '/home/dev/Documents/Projects', '24', '', '20', '', '', '',
+  ])
+})
+
+test('with every tool there, nothing is said', async ($, on) => {
+  await start($, on)
+
+  expect(toasts).toEqual([])
 })
 
 test('Clawd can be turned off', { options: { mascot: false } }, async ($, on) => {

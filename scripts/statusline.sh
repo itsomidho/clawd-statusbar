@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
 # Claude Code status line: model, context, usage limits, repo/branch, git state,
 # MR/pipeline, and CPU/memory when high.
-# Reads the session JSON on stdin. Needs bash, jq and git; gh or glab for
-# the MR/pipeline status. Works on Linux and macOS.
+# Reads the session JSON on stdin. Needs bash, jq and git (no jq under the
+# plugin, which passes the fields itself); gh or glab for the MR/pipeline status. Works on Linux and macOS.
 
 # One jq for every field, joined by the unit separator: a whitespace IFS would
 # fold the empty fields of the ones missing. Each process costs; the bar is
 # drawn every few seconds, so the script starts as few as it can.
+# The tools the plugin fetched itself (scripts/install-tools.sh), when the
+# system has none of its own.
+PATH="$PATH:${XDG_DATA_HOME:-$HOME/.local/share}/clawd-statusbar/bin"
+
+# The plugin hands the fields over ready in STATUSLINE_FIELDS, so the bar needs
+# no jq; run as a plain statusLine command, they come out of the JSON.
 US=$'\x1f'
 IFS=$US read -r model root cur cwd_field ctx tok p_five_hour r_five_hour p_seven_day r_seven_day < <(
+  [[ -n ${STATUSLINE_FIELDS+set} ]] && { printf '%s\n' "$STATUSLINE_FIELDS"; exit; }
   jq -r --arg us "$US" '[.model.display_name, .workspace.project_dir, .workspace.current_dir, .cwd,
     .context_window.used_percentage, .context_window.total_input_tokens,
     .rate_limits.five_hour.used_percentage, .rate_limits.five_hour.resets_at,

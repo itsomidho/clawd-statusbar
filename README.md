@@ -60,8 +60,9 @@ Answer `y` to add the marketplace, then choose a scope. The bar appears right aw
 
 ## Requirements
 
-- Linux or macOS, with `bash`, `jq` and `git`
-- Optional: [`gh`](https://cli.github.com) (logged in) for GitHub PR and Actions status, or [`glab`](https://gitlab.com/gitlab-org/cli) (logged in) for GitLab MR and pipeline status, including self-hosted GitLab. Without them that item stays hidden.
+- Linux or macOS (x86-64 or arm64), with `bash`, `git` and `curl`
+- [`jq`](https://jqlang.org), [`gh`](https://cli.github.com) and [`glab`](https://gitlab.com/gitlab-org/cli): the plugin installs any that are missing on its first session, from each project's latest release (checked against its SHA-256 sums), into `~/.local/share/clawd-statusbar/bin`. No sudo, nothing outside that folder; tools you already have are used as they are. A failed download is tried again a day later.
+- To see GitHub PR and Actions status or GitLab MR and pipeline status (self-hosted GitLab too), log in once with `gh auth login` or `glab auth login`. Until then that item stays hidden.
 
 ## Settings
 

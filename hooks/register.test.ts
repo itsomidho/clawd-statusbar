@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { fit, mascot, yolk } from './register'
+import { activityOf, caption, doingOf, fit, mascot, yolk } from './register'
 
 const BRANCH = '⎇ feature/checkout/fix-z-index-of-navbar-and-the-cart-drawer-overlap'
 const FIGURES = [
@@ -19,12 +19,17 @@ const COMMAND = {
   presentation: { isFullscreen: true, columns: 90 },
 }
 
+// The session's agents as $.agent.list answers them; a test fills it.
+let agents: { id: string; description: string; type: string; status: 'running' | 'completed' }[] = []
+
 // Stands in for the engine under the plugin: every $ call session.start makes.
 function engine(on: On, ran: Record<string, string>[]) {
+  agents = []
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('clock.now', () => ({ value: 1_760_000_742_000 }))
   on('clock.every', () => ({ value: undefined }))
-  on('clock.after', () => ({ value: undefined }))
+  // The egg is put away after a wait the tests never reach; a blink's ends at once.
+  on('clock.after', (_$, e) => e.ms >= 2000 ? new Promise(() => {}) : { value: undefined })
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
   on('session.cwd', () => ({ value: '/home/dev/Documents/Projects' }))
@@ -45,6 +50,9 @@ function engine(on: On, ran: Record<string, string>[]) {
       },
     }
   })
+  on('agent.list', () => ({ value: agents }))
+  on('turn.start', (_$, e) => ({ turnId: e.turnId }))
+  on('turn.complete', (_$, e) => ({ text: e.answer }))
   on('ui.status', () => ({ value: undefined }))
   on('ui.render', () => ({ type: 'Text', props: { dimColor: true }, children: [HINT] }))
 }
@@ -82,7 +90,7 @@ test('session.start reads the parts layout', async ($, on) => {
 test('the section is two framed rows under the engine line', async ($, on) => {
   await start($, on)
 
-  const ui = await footer($, 140)
+  const ui = await footer($, 160)
   const drawn = await ui.drawn()
   const children = (drawn as { children: unknown[] }).children
 
@@ -232,4 +240,79 @@ test('Clawd can be turned off', { options: { mascot: false } }, async ($, on) =>
 
   expect(row).not.toContain('▝▜█████▛▘')
   expect(row).toContain('◆ Opus 5')
+})
+
+const IDLE = { activity: 'idle', tool: '', agents: 0, isBusy: false }
+
+test('each tool has Clawd doing its own thing', () => {
+  expect(activityOf('Read')).toBe('reading')
+  expect(activityOf('Edit')).toBe('editing')
+  expect(activityOf('Bash')).toBe('running')
+  expect(activityOf('WebFetch')).toBe('browsing')
+  expect(activityOf('mcp__claude-in-chrome__navigate')).toBe('browsing')
+  expect(activityOf('Agent')).toBe('delegating')
+  expect(activityOf('AskUserQuestion')).toBe('asking')
+  expect(activityOf('mcp__GitKraken__git_status')).toBe('working')
+})
+
+test('a background agent keeps him busy after the main turn ends', () => {
+  const none = new Map<string, string[]>()
+
+  expect(doingOf(false, [], none, 'main')).toEqual(IDLE)
+  expect(doingOf(true, [], none, 'main')).toMatchObject({ activity: 'thinking', isBusy: true })
+  // The main loop idle, one agent left running: he waits on it.
+  expect(doingOf(false, ['a1'], none, 'main')).toEqual({ activity: 'waiting', tool: '', agents: 1, isBusy: true })
+  // And shows what that agent is doing.
+  const tools = new Map([['a1', ['Grep']], ['main', ['Bash']]])
+  expect(doingOf(false, ['a1'], tools, 'a1')).toMatchObject({ activity: 'reading', tool: 'Grep', agents: 1 })
+  // The main loop's work comes first while it runs.
+  expect(doingOf(true, ['a1'], tools, 'a1')).toMatchObject({ activity: 'running', tool: 'Bash' })
+})
+
+test('the caption names the work, then the agents or the tool', () => {
+  expect(caption(IDLE)).toEqual(['', ''])
+  expect(caption({ activity: 'running', tool: 'Bash', agents: 0, isBusy: true })).toEqual(['running', 'Bash'])
+  expect(caption({ activity: 'waiting', tool: '', agents: 2, isBusy: true })).toEqual(['waiting', '2 agents'])
+  expect(caption({ activity: 'browsing', tool: 'mcp__claude-in-chrome__navigate', agents: 0, isBusy: true }))
+    .toEqual(['browsing', 'navigate'])
+})
+
+test('every activity keeps his width', () => {
+  const kinds = ['thinking', 'reading', 'editing', 'running', 'browsing', 'delegating', 'waiting', 'asking', 'working']
+  for (const activity of kinds) {
+    for (const agents of [0, 3, 12]) {
+      for (const tick of [4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) {
+        const one = pose({ isWorking: true, tick, doing: { activity, tool: '', agents, isBusy: true } })
+        expect([...one.head].length).toBe(9)
+        expect([...`${one.body} ${one.pan}`].length).toBe(13)
+        expect([...one.steam].length).toBe(3)
+      }
+    }
+  }
+})
+
+test('waiting on agents shows how many beside a spinner', () => {
+  const one = pose({ isWorking: true, tick: 8, doing: { activity: 'waiting', tool: '', agents: 2, isBusy: true } })
+  expect(one.steam).toMatch(/^[◜◝◞◟]×2$/)
+  expect(one.mark).toBe('merged')
+})
+
+test('Clawd keeps working while a background agent runs', async ($, on) => {
+  await start($, on)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  agents = [{ id: 'a1', description: 'Rename helper', type: 'wp-developer', status: 'running' }]
+  await $.turn.complete({ answer: 'started', durationMs: 10, isAborted: false, turnId: 't1', reason: 'answer' })
+
+  // The prompt says the main loop is idle; he still works, waiting on the agent.
+  const busy = JSON.stringify(await (await footer($, 120, false)).drawn())
+  expect(busy).toContain('waiting')
+  expect(busy).toContain('1 agent')
+  expect(busy).not.toContain(' ✓ ')
+
+  // The agent finishes: the egg is served.
+  agents = [{ id: 'a1', description: 'Rename helper', type: 'wp-developer', status: 'completed' }]
+  await $.turn.complete({ answer: 'done', durationMs: 10, isAborted: false, turnId: 'a', reason: 'answer', agentId: 'a1' })
+  const done = JSON.stringify(await (await footer($, 120, false)).drawn())
+  expect(done).toContain(' ✓ ')
+  expect(done).not.toContain('waiting')
 })

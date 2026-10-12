@@ -64,47 +64,66 @@ def loop(tick, every, frames):
     return frames[(tick // every) % len(frames)]
 
 
-def face(blink, eyes="•", mouth="ω", glance=0):
-    e = "-" if blink else eyes
-    look = f"{e}{mouth}{e}"
-    return f"{look}  " if glance < 0 else f"  {look}" if glance > 0 else f" {look} "
+# Clawd as figure() draws him: the welcome screen's grid, 17 wide and 5 tall,
+# two of its cells to a quarter-block cell, so three rows of nine cells.
+BODY = "..#############.."
+GLYPHS = " ▗▖▄▝▐▞▟▘▚▌▙▀▜▛█"   # by quarters: TL 8, TR 4, BL 2, BR 1
+EYES = {"open": (1, (4, 12)), "shut": (1, ()), "wide": (0, (4, 12)),
+        "left": (1, (3, 11)), "right": (1, (5, 13)), "down": (2, (4, 12))}
 
 
-def figure(look, left, right, step=False):
-    """His two rows, as figure() draws them: paws up or down, legs stepping."""
-    paws = ("\\" if left else " ", "/" if right else " ")
-    body = (" " if left else "▀") + ("▀▜▀▛▀" if step else "▜▀▀▀▛") + (" " if right else "▀")
-    return paws, look, body
+def blocks(grid):
+    at = lambda r, c: 1 if r < len(grid) and c < len(grid[r]) and grid[r][c] == "#" else 0
+    return ["".join(GLYPHS[at(r, c) * 8 + at(r, c + 1) * 4 + at(r + 1, c) * 2 + at(r + 1, c + 1)]
+                    for c in range(0, 18, 2)) for r in (0, 2, 4)]
+
+
+def figure(eyes, left, right, step=False):
+    """His three rows: eye holes cut, a raised arm moved up a row, legs stepped."""
+    rows = [list(BODY), list(BODY), list("#" * 17), list(BODY), list("." * 17)]
+    row, cols = EYES[eyes]
+    for c in cols:
+        rows[row][c] = "."
+        if eyes == "wide":
+            rows[1][c] = "."
+    for side, start in ((left, 0), (right, 15)):
+        if side:
+            rows[2][start] = rows[2][start + 1] = "."
+            rows[1][start] = rows[1][start + 1] = "#"
+    for c in ((3, 5, 11, 13) if step else (2, 4, 12, 14)):
+        rows[4][c] = "#"
+    return blocks(["".join(r) for r in rows])
 
 
 def mascot(working, tick, blink, served, doing=None, agents=0):
-    """(paws, face, body, steam, steam colour, yolk) as mascot() draws them."""
-    smile = face(blink)
+    """(three rows of him, top, steam, steam colour, yolk) as mascot() draws them."""
+    eyes = lambda open="open": "shut" if blink else open
+    glance = lambda: eyes(loop(tick, 8, ["open", "left", "open", "right"]))
     if working:
         if tick < 4:
-            return (*figure(face(blink, "•", "o"), False, True), " o ", CLAUDE, "_")
+            high = tick < 2
+            return figure(eyes("wide"), False, True), " o " if high else "   ", "   " if high else " o ", CLAUDE, "_"
         y = yolk(tick)
         if doing == "thinking":
-            return (*figure(face(blink, "·"), False, False), loop(tick, 4, ["   ", "·  ", "·· ", "···"]), CLAUDE, y)
+            return figure(glance(), False, False), "   ", loop(tick, 4, ["   ", "·  ", "·· ", "···"]), CLAUDE, y
         if doing == "reading":
-            return (*figure(smile, False, True), loop(tick, 4, ["≡  ", " ≡ ", "  ≡", " ≡ "]), SUGGESTION, y)
+            return figure(eyes(), False, True), "   ", loop(tick, 4, ["≡  ", " ≡ ", "  ≡", " ≡ "]), SUGGESTION, y
         if doing == "running":
-            return (*figure(" >ω< ", True, False, loop(tick, 2, [False, True])), loop(tick, 4, [">_ ", ">  "]), GREEN, y)
+            return figure(eyes(), True, False, loop(tick, 2, [False, True])), "   ", loop(tick, 4, [">_ ", ">  "]), GREEN, y
         if doing == "browsing":
-            return (*figure(smile, False, True), f" {loop(tick, 2, GLOBE)} ", IDE, y)
+            return figure(eyes(), False, True), "   ", f" {loop(tick, 2, GLOBE)} ", IDE, y
         if doing in ("delegating", "waiting"):
             count = "  " if agents == 0 else "9+" if agents > 9 else f"×{agents}"
-            look = face(blink, "•", "ω", loop(tick, 8, [0, -1, 0, 1]))
-            return (*figure(look, False, False, loop(tick, 4, [False, True])), loop(tick, 2, SPIN) + count, MERGED, y)
+            return figure(glance(), False, False, loop(tick, 4, [False, True])), "   ", loop(tick, 2, SPIN) + count, MERGED, y
         if doing == "asking":
-            return (*figure(face(blink, "•", "o"), True, True), loop(tick, 4, [" ! ", "   "]), WARNING, y)
+            return figure(eyes("wide"), True, True), "   ", loop(tick, 4, [" ! ", "   "]), WARNING, y
         left = (tick // 4) % 2 == 0
-        return (*figure(smile, left, not left), loop(tick, 2, SIZZLE), CLAUDE, y)
+        return figure(eyes(), left, not left), "   ", loop(tick, 2, SIZZLE), CLAUDE, y
     if served:
         mark, y = served
         done = mark == "✓"
-        return (*figure(face(False, "^") if done else face(blink, ";"), False, done), f" {mark} ", GREEN if done else RED, y)
-    return (*figure(smile, False, False), "   ", CLAUDE, "_")
+        return figure(eyes() if done else "down", False, done), "   ", f" {mark} ", GREEN if done else RED, y
+    return figure(eyes(), False, False), "   ", "   ", CLAUDE, "_"
 
 
 def caption(working, doing, tool, agents):
@@ -116,12 +135,12 @@ def caption(working, doing, tool, agents):
 
 BOX = 85              # the frame's width in cells, on a 91-column terminal
 INNER = BOX - 4       # less border and padding
-MASCOT = 11
+MASCOT = 13
 CAPTION = 8
 GAP = 2
 INDENT = 2
 COLS = INDENT + BOX + 2
-ROWS = 5
+ROWS = 6
 PAD = 18
 
 
@@ -136,7 +155,7 @@ def parts_line(parts):
 
 
 def frame(working, tick, blink, served, ctx, dirty, review, doing=None, tool="", agents=0, main=None):
-    paws, look, figure_body, steam, steam_c, y = mascot(working, tick, blink, served, doing, agents)
+    (head, figure_body, legs), top, steam, steam_c, y = mascot(working, tick, blink, served, doing, agents)
     word, detail = (part[:CAPTION] for part in caption(working, doing, tool, agents))
     main = working if main is None else main
     figures = parts_line([("◆ Opus 5.5", CYAN), (f"CTX {ctx}% {ctx * 10}k", DIM),
@@ -157,9 +176,10 @@ def frame(working, tick, blink, served, ctx, dirty, review, doing=None, tool="",
         return ([(" " * INDENT + "│ ", BORDER)] + line + [(" " * (room - used + GAP), TEXT)]
                 + words + [(" " * GAP, TEXT)] + m + [(" │", BORDER)])
 
-    rows.append(body(figures, [(word.rjust(CAPTION), steam_c)], [(paws[0], CLAUDE), (look, FACE, CLAUDE), (paws[1], CLAUDE), (" " + steam, steam_c)]))
+    rows.append(body(figures, [(word.rjust(CAPTION), steam_c)], [(head, CLAUDE), (" " + top, steam_c)]))
+    rows.append(body(project, [(detail.rjust(CAPTION), DIM)], [(figure_body, CLAUDE), (" " + steam, steam_c)]))
     pan = [(" \\", DIM), ("_" if y == "_" else y, DIM if y == "_" else YELLOW), ("/", DIM)]
-    rows.append(body(project, [(detail.rjust(CAPTION), DIM)], [(figure_body, CLAUDE)] + pan))
+    rows.append(body([], [(" " * CAPTION, TEXT)], [(legs, CLAUDE)] + pan))
     rows.append([(" " * INDENT + "╰" + "─" * (BOX - 2) + "╯", BORDER)])
 
     img = Image.new("RGB", (COLS * CW + 2 * PAD, ROWS * CH + 2 * PAD), BG)

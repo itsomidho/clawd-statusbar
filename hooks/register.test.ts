@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { activityOf, caption, doingOf, face, figure, fit, mascot, yolk } from './register'
+import { activityOf, blocks, caption, doingOf, EYES, figure, fit, mascot, yolk } from './register'
 
 const BRANCH = '⎇ feature/checkout/fix-z-index-of-navbar-and-the-cart-drawer-overlap'
 const FIGURES = [
@@ -166,18 +166,36 @@ test('/statusbar takes the line away and brings it back', async ($, on) => {
   expect(again).toContain('CTX 24%')
 })
 
+// Nine cells and three rows of him, then the three cells beside: every pose
+// the same size, so the figures never move.
+function expectSize(one: ReturnType<typeof mascot>) {
+  for (const row of [one.head, one.body, one.legs]) expect([...row].length).toBe(9)
+  for (const beside of [one.top, one.steam, one.pan]) expect([...beside].length).toBe(3)
+}
+
 const pose = (over: Partial<Parameters<typeof mascot>[0]> = {}) =>
   mascot({ isWorking: false, tick: 0, isBlinking: false, served: null, ...over })
 
-test('between turns the pan is empty and Clawd stands still', () => {
+test('between turns the pan is empty and Clawd stands as on the welcome screen', () => {
   expect(pose()).toEqual({
-    left: ' ', face: ' •ω• ', right: ' ', head: '  •ω•  ', body: '▀▜▀▀▀▛▀', steam: '   ', mark: 'claude', pan: '\\_/',
+    head: ' █▜███▜▌ ', body: '▀██████▛▘', legs: ' ▘▘   ▘▘ ', top: '   ', steam: '   ', mark: 'claude', pan: '\\_/',
   })
 })
 
+test('his three rows are the welcome screen\'s grid, pixel for pixel', () => {
+  expect(blocks([
+    '..#############..',
+    '..##.#######.##..',
+    '#################',
+    '..#############..',
+    '..#.#.......#.#..',
+  ])).toEqual([' █▜███▜▌ ', '▀██████▛▘', ' ▘▘   ▘▘ '])
+})
+
 test('a turn cracks the egg in, then fries it with the yolk setting', () => {
-  // The egg falls first, the pan still empty.
-  expect(pose({ isWorking: true, tick: 0 })).toMatchObject({ steam: ' o ', pan: '\\_/' })
+  // The egg falls from above, then into the pan, still empty.
+  expect(pose({ isWorking: true, tick: 0 })).toMatchObject({ top: ' o ', steam: '   ', pan: '\\_/' })
+  expect(pose({ isWorking: true, tick: 2 })).toMatchObject({ top: '   ', steam: ' o ', pan: '\\_/' })
   // Then it sizzles, flipped from one side and the other.
   const frying = [4, 6, 8, 10].map(tick => pose({ isWorking: true, tick }))
   expect(frying.every(one => one.pan === '\\o/' && one.steam.includes('~'))).toBe(true)
@@ -201,36 +219,38 @@ test('every pose keeps his width, so the figures never move', () => {
     pose(), pose({ isBlinking: true }), pose({ served: { mark: '✓', yolk: '●' } }),
     ...[0, 3, 4, 5, 70, 250].map(tick => pose({ isWorking: true, tick })),
   ]
-  for (const one of all) {
-    expect([...one.head].length).toBe(7)
-    expect([...one.face].length).toBe(5)
-    expect([...`${one.body} ${one.pan}`].length).toBe(11)
-    expect([...one.steam].length).toBe(3)
-  }
+  for (const one of all) expectSize(one)
 })
 
 test('a blink shuts his eyes', () => {
-  expect(pose({ isBlinking: true }).face).toBe(' -ω- ')
+  expect(pose({ isBlinking: true }).head).toBe(' ██████▌ ')
 })
 
-test('his face says how it went', () => {
-  expect(pose({ served: { mark: '✓', yolk: '●' } }).face).toBe(' ^ω^ ')
-  expect(pose({ served: { mark: 'x', yolk: 'o' } }).face).toBe(' ;ω; ')
-  expect(face(false, '•', 'ω', -1)).toBe('•ω•  ')
-  expect(face(false, '•', 'ω', 1)).toBe('  •ω•')
+test('his eyes say how it went, and glance about', () => {
+  // Done: the egg held up in his right arm.
+  expect(pose({ served: { mark: '✓', yolk: '●' } })).toMatchObject({ head: ' █▜███▜▙▖', body: '▀██████▌ ' })
+  // Cut short: eyes cast down.
+  expect(pose({ served: { mark: 'x', yolk: 'o' } })).toMatchObject({ head: ' ██████▌ ', body: '▀█▟███▟▛▘' })
+  // Wide-eyed, an arm up, as the egg drops in.
+  expect(pose({ isWorking: true, tick: 0 }).head).toBe(' █▐███▐▙▖')
+  // Glancing while he waits on agents.
+  const waiting = (tick: number) =>
+    pose({ isWorking: true, tick, doing: { activity: 'waiting', tool: '', agents: 1, isBusy: true } }).head
+  expect(new Set([8, 16, 24, 32].map(waiting)).size).toBe(3)
+  for (const eyes of Object.keys(EYES) as (keyof typeof EYES)[]) {
+    const one = figure(eyes, 'down', 'down')
+    for (const row of [one.head, one.body, one.legs]) expect([...row].length).toBe(9)
+  }
 })
 
-test('he has paws to raise and legs to step', () => {
-  expect(figure(' •ω• ', 'up', 'down')).toMatchObject({ head: '\\ •ω•  ', body: ' ▜▀▀▀▛▀' })
-  expect(figure(' •ω• ', 'down', 'up')).toMatchObject({ head: '  •ω• /', body: '▀▜▀▀▀▛ ' })
-  expect(figure(' •ω• ', 'down', 'down', true).body).toBe('▀▀▜▀▛▀▀')
-  // Asking: both paws up.
-  expect(pose({ isWorking: true, tick: 8, doing: { activity: 'asking', tool: '', agents: 0, isBusy: true } }).head)
-    .toBe('\\ •o• /')
-  // Running: his legs step as the ticks go.
-  const run = (tick: number) =>
-    pose({ isWorking: true, tick, doing: { activity: 'running', tool: 'Bash', agents: 0, isBusy: true } }).body
-  expect(new Set([4, 5, 6, 7].map(run)).size).toBe(2)
+test('he has arms to raise and legs to scuttle', () => {
+  expect(figure('open', 'up', 'down')).toMatchObject({ head: '▄█▜███▜▌ ', body: ' ██████▛▘' })
+  expect(figure('open', 'down', 'up')).toMatchObject({ head: ' █▜███▜▙▖', body: '▀██████▌ ' })
+  // Scuttling: his four legs step out.
+  expect(figure('open', 'down', 'down', true).legs).toBe(' ▝▝  ▝▝  ')
+  // Asking: both arms up, eyes wide.
+  expect(pose({ isWorking: true, tick: 8, doing: { activity: 'asking', tool: '', agents: 0, isBusy: true } }))
+    .toMatchObject({ head: '▄█▐███▐▙▖', body: ' ██████▌ ' })
 })
 
 test('Clawd sits at the right of the frame, frying while a turn runs', async ($, on) => {
@@ -239,10 +259,11 @@ test('Clawd sits at the right of the frame, frying while a turn runs', async ($,
   const idle = JSON.stringify(await (await footer($, 120)).drawn())
   const busy = JSON.stringify(await (await footer($, 120, true)).drawn())
 
-  expect(idle).toContain('ω')
+  expect(idle).toContain('▀██████▛▘')
   expect(idle).toContain('"color":"claude"')
   expect(idle).not.toMatch(/~·~|·~·|~ ~/)
-  expect(busy).toContain('"backgroundColor":"claude"')
+  // Three rows of him while a turn runs, the third his legs over the pan.
+  expect(busy).toMatch(/"children":\[" [▘▝]{2} {2,3}[▘▝]{2} {1,2}"\]/)
   expect(busy).toMatch(/ o |~·~|·~·|~ ~| ~ /)
 })
 
@@ -251,7 +272,7 @@ test('a narrow row gives his room to the figures', async ($, on) => {
 
   const row = JSON.stringify(await (await footer($, 60)).drawn())
 
-  expect(row).not.toContain('ω')
+  expect(row).not.toContain('▀██████▛▘')
   expect(row).toContain('◆ Opus 5')
 })
 
@@ -267,7 +288,7 @@ test('Clawd can be turned off', { options: { mascot: false } }, async ($, on) =>
 
   const row = JSON.stringify(await (await footer($, 120)).drawn())
 
-  expect(row).not.toContain('ω')
+  expect(row).not.toContain('▀██████▛▘')
   expect(row).toContain('◆ Opus 5')
 })
 
@@ -312,10 +333,7 @@ test('every activity keeps his width', () => {
     for (const agents of [0, 3, 12]) {
       for (const tick of [4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) {
         const one = pose({ isWorking: true, tick, doing: { activity, tool: '', agents, isBusy: true } })
-        expect([...one.head].length).toBe(7)
-        expect([...one.face].length).toBe(5)
-        expect([...`${one.body} ${one.pan}`].length).toBe(11)
-        expect([...one.steam].length).toBe(3)
+        expectSize(one)
       }
     }
   }

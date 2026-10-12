@@ -1,7 +1,9 @@
 """Render docs/clawd.gif: the bar through one turn, Clawd frying an egg.
 
-The poses follow mascot() in hooks/register.tsx: same glyphs, colours and
-tick (150 ms); the long stretches of the turn are time-lapsed. Needs Pillow
+The poses follow mascot() and caption() in hooks/register.tsx: same glyphs,
+colours and tick (150 ms); the turn thinks, reads, edits, runs a command,
+browses, hands work to a background agent and waits on it after the main
+turn ends. The long stretches are time-lapsed. Needs Pillow
 and the DejaVu fonts (paths below are Debian/Ubuntu).
 
     python3 docs/clawd_gif.py docs/clawd.gif
@@ -25,6 +27,11 @@ RED = (224, 108, 117)
 CYAN = (86, 182, 194)
 BLUE = (97, 175, 239)
 MAGENTA = (198, 120, 221)
+# The theme's own colours the poses name.
+SUGGESTION = (177, 185, 249)
+IDE = (71, 150, 228)
+MERGED = (175, 135, 255)
+WARNING = (255, 193, 7)
 
 mono = ImageFont.truetype(MONO, SIZE)
 asc, desc = mono.getmetrics()
@@ -45,23 +52,57 @@ def yolk(tick):
     return "●" if ms >= 30_000 else "◉" if ms >= 10_000 else "o"
 
 
-def mascot(working, tick, blink, served):
+SPIN = "◜◝◞◟"
+GLOBE = "◐◓◑◒"
+CAPTIONS = {"thinking": "thinking", "reading": "reading", "editing": "editing", "running": "running",
+            "browsing": "browsing", "delegating": "delegating", "asking": "asking", "waiting": "waiting",
+            "working": "cooking"}
+
+
+def loop(tick, every, frames):
+    return frames[(tick // every) % len(frames)]
+
+
+def mascot(working, tick, blink, served, doing=None, agents=0):
+    """(head, steam, steam colour, yolk) as mascot() draws them."""
     eyes = "█████" if blink else "▛███▜"
     if working:
         if tick < 4:
             return f" ▐{eyes}▌▗", " o ", CLAUDE, "_"
-        left = (tick // 2) % 2 == 0
-        head = f"▖▐{eyes}▌ " if left else f" ▐{eyes}▌▗"
-        return head, SIZZLE[tick % 4], CLAUDE, yolk(tick)
+        y = yolk(tick)
+        still, holding, left = f" ▐{eyes}▌ ", f" ▐{eyes}▌▗", f"▖▐{eyes}▌ "
+        if doing == "thinking":
+            return still, loop(tick, 3, ["   ", "·  ", "·· ", "···"]), CLAUDE, y
+        if doing == "reading":
+            return holding, loop(tick, 3, ["≡  ", " ≡ ", "  ≡", " ≡ "]), SUGGESTION, y
+        if doing == "running":
+            return left, loop(tick, 3, [">_ ", ">  "]), GREEN, y
+        if doing == "browsing":
+            return holding, f" {loop(tick, 2, GLOBE)} ", IDE, y
+        if doing in ("delegating", "waiting"):
+            count = "  " if agents == 0 else "9+" if agents > 9 else f"×{agents}"
+            return loop(tick, 3, [still, left, still, holding]), loop(tick, 1, SPIN) + count, MERGED, y
+        if doing == "asking":
+            return f"▖▐{eyes}▌▗", loop(tick, 3, [" ! ", "   "]), WARNING, y
+        head = left if (tick // 2) % 2 == 0 else holding
+        return head, SIZZLE[tick % 4], CLAUDE, y
     if served:
         mark, y = served
         return f" ▐{eyes}▌▗", f" {mark} ", GREEN if mark == "✓" else RED, y
     return f" ▐{eyes}▌ ", "   ", CLAUDE, "_"
 
 
-BOX = 72              # the frame's width in cells
+def caption(working, doing, tool, agents):
+    if not working:
+        return "", ""
+    count = f"{agents} agent{'' if agents == 1 else 's'}" if agents else ""
+    return CAPTIONS.get(doing or "working", ""), count or tool
+
+
+BOX = 84              # the frame's width in cells
 INNER = BOX - 4       # less border and padding
 MASCOT = 13
+CAPTION = 10
 GAP = 2
 INDENT = 2
 COLS = INDENT + BOX + 2
@@ -79,8 +120,10 @@ def parts_line(parts):
     return out
 
 
-def frame(working, tick, blink, served, ctx, dirty, review):
-    head, steam, steam_c, y = mascot(working, tick, blink, served)
+def frame(working, tick, blink, served, ctx, dirty, review, doing=None, tool="", agents=0, main=None):
+    head, steam, steam_c, y = mascot(working, tick, blink, served, doing, agents)
+    word, detail = caption(working, doing, tool, agents)
+    main = working if main is None else main
     figures = parts_line([("◆ Opus 5.5", CYAN), (f"CTX {ctx}% {ctx * 10}k", DIM),
                           ("5h 18% ↻ 2h 14m", DIM)])
     project = [("~/code/shop", BLUE), ("⎇ feature/cart", MAGENTA), (f"●{dirty}", YELLOW), ("↑2", GREEN)]
@@ -88,20 +131,20 @@ def frame(working, tick, blink, served, ctx, dirty, review):
         project.append(review)
     project = parts_line(project)
 
-    room = INNER - MASCOT - GAP
+    room = INNER - MASCOT - GAP - CAPTION - GAP
     rows = []
-    hint = "esc to interrupt" if working else "? for shortcuts"
+    hint = "esc to interrupt" if main else "? for shortcuts"
     rows.append([(" " * INDENT + hint, DIM)])
     rows.append([(" " * INDENT + "╭" + "─" * (BOX - 2) + "╮", BORDER)])
 
-    def body(line, m):
+    def body(line, words, m):
         used = sum(len(t) for t, _ in line)
         return ([(" " * INDENT + "│ ", BORDER)] + line + [(" " * (room - used + GAP), TEXT)]
-                + m + [(" │", BORDER)])
+                + words + [(" " * GAP, TEXT)] + m + [(" │", BORDER)])
 
-    rows.append(body(figures, [(head, CLAUDE), (" " + steam, steam_c)]))
+    rows.append(body(figures, [(word.rjust(CAPTION), steam_c)], [(head, CLAUDE), (" " + steam, steam_c)]))
     pan = [(" \\", DIM), ("_" if y == "_" else y, DIM if y == "_" else YELLOW), ("/", DIM)]
-    rows.append(body(project, [("▝▜█████▛▘", CLAUDE)] + pan))
+    rows.append(body(project, [(detail.rjust(CAPTION), DIM)], [("▝▜█████▛▘", CLAUDE)] + pan))
     rows.append([(" " * INDENT + "╰" + "─" * (BOX - 2) + "╯", BORDER)])
 
     img = Image.new("RGB", (COLS * CW + 2 * PAD, ROWS * CH + 2 * PAD), BG)
@@ -137,10 +180,25 @@ add(900, blink=False, **idle)
 add(160, blink=True, **idle)
 add(700, blink=False, **idle)
 
-# The turn: crack, then frying, time-lapsed through the yolk setting.
-for start, count, ctx in [(0, 22, 6), (67, 16, 8), (200, 16, 11)]:
-    for tick in range(start, start + count):
-        add(150, working=True, tick=tick, blink=False, served=None, ctx=ctx, dirty=4, review=("CI ◔", YELLOW))
+# The turn: crack, then each kind of work, the yolk setting as it runs long.
+busy = dict(blink=False, served=None, dirty=4, review=("CI ◔", YELLOW))
+tick = 0
+for count, ctx, doing, tool, agents, main in [
+    (10, 6, "thinking", "", 0, True),
+    (12, 7, "reading", "Grep", 0, True),
+    (12, 8, "editing", "Edit", 0, True),
+    (12, 9, "running", "Bash", 0, True),
+    (12, 10, "browsing", "WebFetch", 0, True),
+    (12, 11, "delegating", "Agent", 1, True),
+    # The main turn is over; Clawd keeps going while the background agent works.
+    (16, 11, "waiting", "", 1, False),
+    (12, 12, "reading", "Read", 1, False),
+]:
+    for _ in range(count):
+        add(150, working=True, tick=tick, ctx=ctx, doing=doing, tool=tool, agents=agents, main=main, **busy)
+        tick += 1
+    # Time-lapse: the yolk sets over the long stretches between.
+    tick += 25
 
 done = dict(working=False, tick=0, ctx=11, dirty=5, review=("!171 ✓", GREEN))
 add(2000, blink=False, served=("✓", "●"), **done)

@@ -2,9 +2,9 @@
 
 A status bar for [Claude Code](https://claude.com/claude-code) that sits in a thin frame under the prompt, with Clawd, the little creature from Claude Code's welcome screen, frying an egg on the right while Claude works.
 
-![Clawd frying an egg in the status bar through one turn](docs/clawd.gif)
+![Clawd in the status bar through one turn: thinking, reading, editing, running, browsing, then waiting on a background agent](docs/clawd.gif)
 
-<sub>One turn, time-lapsed: the egg cracks in, sizzles while the yolk sets, and is served with a ✓; the pipeline goes from running to passed.</sub>
+<sub>One turn, time-lapsed: the egg cracks in and the yolk sets while Claude thinks, reads, edits, runs a command and browses; it hands work to a background agent, and Clawd keeps going after the main turn ends until the agent is done, then serves the egg with a ✓.</sub>
 
 ## What it shows
 

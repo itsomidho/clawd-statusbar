@@ -28,6 +28,7 @@ CYAN = (86, 182, 194)
 BLUE = (97, 175, 239)
 MAGENTA = (198, 120, 221)
 FACE = (20, 20, 22)
+STEAM_C = (150, 150, 160)
 # The theme's own colours the poses name.
 SUGGESTION = (177, 185, 249)
 IDE = (71, 150, 228)
@@ -65,57 +66,52 @@ def loop(tick, every, frames):
 
 
 # Clawd as figure() draws him: the welcome screen's figure without his legs, in
-# a grid 18 wide and 4 tall with room for one finger above his right hand's tip;
-# two of its cells to a quarter-block cell, so two rows of nine cells.
-BODY = "..############...."
-ARMS = "################.."
+# a grid 20 wide and 4 tall with room for a finger above each hand's tip; two
+# of its cells to a quarter-block cell, so two rows of ten cells.
+BODY = "....############...."
+ARMS = "..################.."
 GLYPHS = " ▗▖▄▝▐▞▟▘▚▌▙▀▜▛█"   # by quarters: TL 8, TR 4, BL 2, BR 1
-EYES = {"open": (1, (4, 11)), "shut": (1, ())}
+EYES = {"open": (1, (6, 13)), "shut": (1, ())}
 
 
 def blocks(grid):
     at = lambda r, c: 1 if grid[r][c] == "#" else 0
     return ["".join(GLYPHS[at(r, c) * 8 + at(r, c + 1) * 4 + at(r + 1, c) * 2 + at(r + 1, c + 1)]
-                    for c in range(0, 18, 2)) for r in (0, 2)]
+                    for c in range(0, 20, 2)) for r in (0, 2)]
 
 
-def figure(eyes, finger=False):
-    """His two rows: eye holes cut, the finger shown or hidden."""
+def figure(eyes, fingers="none"):
+    """His two rows: eye holes cut, each finger shown or hidden."""
     rows = [list(BODY), list(BODY), list(ARMS), list(BODY)]
     row, cols = EYES[eyes]
     for c in cols:
         rows[row][c] = "."
-    if finger:
-        rows[1][16] = "#"
+    if fingers in ("left", "both"):
+        rows[1][1] = "#"
+    if fingers in ("right", "both"):
+        rows[1][18] = "#"
     return blocks(["".join(r) for r in rows])
 
 
+STEAM = ["~ ~", "~°~", " ~ ", "°~°"]
+MARKS = {"thinking": CLAUDE, "reading": SUGGESTION, "running": GREEN, "browsing": IDE,
+         "delegating": MERGED, "waiting": MERGED, "asking": WARNING}
+
+
 def mascot(working, tick, blink, served, doing=None, agents=0):
-    """(two rows of him, steam, steam colour, yolk) as mascot() draws them."""
+    """(two rows of him, steam, its colour, yolk, caption colour, hot) as mascot() draws them."""
     eyes = "shut" if blink else "open"
     if working:
-        still = figure(eyes, loop(tick, 4, [True, False]))
+        still = figure(eyes, loop(tick, 4, ["left", "right"]))
+        mark = MARKS.get(doing, CLAUDE)
         if tick < 4:
-            return still, " o ", CLAUDE, "_"
-        y = yolk(tick)
-        if doing == "thinking":
-            return still, loop(tick, 4, ["   ", "·  ", "·· ", "···"]), CLAUDE, y
-        if doing == "reading":
-            return still, loop(tick, 4, ["≡  ", " ≡ ", "  ≡", " ≡ "]), SUGGESTION, y
-        if doing == "running":
-            return still, loop(tick, 4, [">_ ", ">  "]), GREEN, y
-        if doing == "browsing":
-            return still, f" {loop(tick, 2, GLOBE)} ", IDE, y
-        if doing in ("delegating", "waiting"):
-            count = "  " if agents == 0 else "9+" if agents > 9 else f"×{agents}"
-            return still, loop(tick, 2, SPIN) + count, MERGED, y
-        if doing == "asking":
-            return still, loop(tick, 4, [" ! ", "   "]), WARNING, y
-        return still, loop(tick, 2, SIZZLE), CLAUDE, y
+            return still, " o ", mark, "_", mark, True
+        return still, loop(tick, 2, STEAM), STEAM_C, yolk(tick), mark, True
     if served:
         mark, y = served
-        return figure(eyes), f" {mark} ", GREEN if mark == "✓" else RED, y
-    return figure(eyes), "   ", CLAUDE, "_"
+        c = GREEN if mark == "✓" else RED
+        return figure(eyes), f" {mark} ", c, y, c, False
+    return figure(eyes), "   ", CLAUDE, "_", CLAUDE, False
 
 
 def caption(working, doing, tool, agents):
@@ -127,7 +123,7 @@ def caption(working, doing, tool, agents):
 
 BOX = 85              # the frame's width in cells, on a 91-column terminal
 INNER = BOX - 4       # less border and padding
-MASCOT = 13
+MASCOT = 14
 CAPTION = 8
 GAP = 2
 INDENT = 2
@@ -147,7 +143,7 @@ def parts_line(parts):
 
 
 def frame(working, tick, blink, served, ctx, dirty, review, doing=None, tool="", agents=0, main=None):
-    (head, figure_body), steam, steam_c, y = mascot(working, tick, blink, served, doing, agents)
+    (head, figure_body), steam, steam_c, y, word_c, hot = mascot(working, tick, blink, served, doing, agents)
     word, detail = (part[:CAPTION] for part in caption(working, doing, tool, agents))
     main = working if main is None else main
     figures = parts_line([("◆ Opus 5.5", CYAN), (f"CTX {ctx}% {ctx * 10}k", DIM),
@@ -168,8 +164,9 @@ def frame(working, tick, blink, served, ctx, dirty, review, doing=None, tool="",
         return ([(" " * INDENT + "│ ", BORDER)] + line + [(" " * (room - used + GAP), TEXT)]
                 + words + [(" " * GAP, TEXT)] + m + [(" │", BORDER)])
 
-    rows.append(body(figures, [(word.rjust(CAPTION), steam_c)], [(head, CLAUDE), (" " + steam, steam_c)]))
-    pan = [(" \\", DIM), ("_" if y == "_" else y, DIM if y == "_" else YELLOW), ("/", DIM)]
+    rows.append(body(figures, [(word.rjust(CAPTION), word_c)], [(head, CLAUDE), (" " + steam, steam_c)]))
+    side = RED if hot else DIM
+    pan = [(" \\", side), ("_" if y == "_" else y, side if y == "_" else YELLOW), ("/", side)]
     rows.append(body(project, [(detail.rjust(CAPTION), DIM)], [(figure_body, CLAUDE)] + pan))
     rows.append([(" " * INDENT + "╰" + "─" * (BOX - 2) + "╯", BORDER)])
 

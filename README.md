@@ -36,21 +36,13 @@ Everything that is not always useful appears only when it applies, so most of th
 **Clawd** is the creature from Claude Code's welcome screen, without his legs: two rows beside a pan.
 
 ```
- █▜██▛█ ▖
-▀██████▀  \_/
+▗ █▜██▛█ ▖
+ ▀██████▀  \_/
 ```
 
-While Claude works he raises a finger and puts it down again (that `▖` above his right hand), and fries an egg: it drops into the pan, sizzles, and the yolk sets as the turn runs long (`o`, then `◉` after 10 seconds, `●` after 30). When the turn ends he stands by it with a green `✓`, or a red `x` if the turn was interrupted or failed. Between turns he blinks over an empty pan. Over the pan you see what Claude is doing, with a word for it on his left (the tool, or how many agents run, under it):
+While Claude works he shakes his fingers, the one above his left hand and then the one above his right (`▗` and `▖`), and cooks an egg: it drops into the pan, the pan glows red-hot, steam rises off it (`~ ~`, `~°~`), and the yolk sets as the turn runs long (`o`, then `◉` after 10 seconds, `●` after 30). When the turn ends the pan comes off the heat and he stands by it with a green `✓`, or a red `x` if the turn was interrupted or failed. Between turns he blinks over an empty pan.
 
-| Doing | Over the pan |
-| --- | --- |
-| thinking | thought dots `·` `··` `···` |
-| reading (Read, Grep, Glob, ...) | the recipe `≡` |
-| editing (Edit, Write, ...) and anything else | sizzling `~·~` |
-| running (Bash) | a shell prompt `>_` |
-| browsing (WebFetch, WebSearch, browser MCP tools) | a turning globe `◐` |
-| delegating, or waiting on background agents | a spinner and the count, `◜×2` |
-| asking you (AskUserQuestion, plan approval) | a blinking `!` |
+On his left a word says what Claude is doing, in its own colour, with the tool or how many agents run under it: `thinking`, `reading`, `editing`, `running`, `browsing`, `spawning` (an agent), `waiting` (on background agents) or `asking` (you a question).
 
 A background agent keeps him busy after the main turn ends: he shows what the agent is doing, and serves the egg only once every agent is done. He steps aside on terminals narrower than 72 columns, and the caption on his left below 84.
 

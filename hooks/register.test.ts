@@ -147,7 +147,7 @@ test('the line stays inside the row, indent and right margin counted', async ($,
 
   // Inside the frame: the row less its indent, right margin, border and
   // padding, the mascot and the caption, each with the gap before it.
-  expect([...line].length).toBeLessThanOrEqual(90 - 2 - 4 - 4 - 13 - 2 - 8 - 2)
+  expect([...line].length).toBeLessThanOrEqual(90 - 2 - 4 - 4 - 14 - 2 - 8 - 2)
   expect(line).not.toBe('')
   await ui.unmount()
 })
@@ -166,10 +166,10 @@ test('/statusbar takes the line away and brings it back', async ($, on) => {
   expect(again).toContain('CTX 24%')
 })
 
-// Nine cells and two rows of him, then the three cells beside: every pose
+// Ten cells and two rows of him, then the three cells beside: every pose
 // the same size, so the figures never move.
 function expectSize(one: ReturnType<typeof mascot>) {
-  for (const row of [one.head, one.body]) expect([...row].length).toBe(9)
+  for (const row of [one.head, one.body]) expect([...row].length).toBe(10)
   for (const beside of [one.steam, one.pan]) expect([...beside].length).toBe(3)
 }
 
@@ -177,24 +177,26 @@ const pose = (over: Partial<Parameters<typeof mascot>[0]> = {}) =>
   mascot({ isWorking: false, tick: 0, isBlinking: false, served: null, ...over })
 
 test('between turns the pan is empty and Clawd stands as in the picture', () => {
-  expect(pose()).toEqual({ head: ' █▜██▛█  ', body: '▀██████▀ ', steam: '   ', mark: 'claude', pan: '\\_/' })
+  expect(pose()).toEqual({
+    head: '  █▜██▛█  ', body: ' ▀██████▀ ', steam: '   ', mark: 'claude', pan: '\\_/', isHot: false,
+  })
 })
 
 test('his two rows are the picture\'s grid, pixel for pixel', () => {
   expect(blocks([
-    '..############....',
-    '..##.######.##..#.',
-    '################..',
-    '..############....',
-  ])).toEqual([' █▜██▛█ ▖', '▀██████▀ '])
+    '....############....',
+    '.#..##.######.##..#.',
+    '..################..',
+    '....############....',
+  ])).toEqual(['▗ █▜██▛█ ▖', ' ▀██████▀ '])
 })
 
 test('a turn cracks the egg in, then fries it with the yolk setting', () => {
   // The egg drops in first, the pan still empty.
   expect(pose({ isWorking: true, tick: 0 })).toMatchObject({ steam: ' o ', pan: '\\_/' })
-  // Then it sizzles, flipped from one side and the other.
+  // Then it cooks on the heat, steam rising off it.
   const frying = [4, 6, 8, 10].map(tick => pose({ isWorking: true, tick }))
-  expect(frying.every(one => one.pan === '\\o/' && one.steam.includes('~'))).toBe(true)
+  expect(frying.every(one => one.pan === '\\o/' && one.steam.includes('~') && one.isHot)).toBe(true)
   expect(new Set(frying.map(one => one.head)).size).toBe(2)
   expect(new Set(frying.map(one => one.steam)).size).toBeGreaterThan(1)
   // Runny, set, then hard as the turn runs on.
@@ -219,30 +221,32 @@ test('every pose keeps his width, so the figures never move', () => {
 })
 
 test('a blink shuts his eyes', () => {
-  expect(pose({ isBlinking: true }).head).toBe(' ██████  ')
+  expect(pose({ isBlinking: true }).head).toBe('  ██████  ')
 })
 
-test('all he does while Claude works is raise a finger and put it down', () => {
+test('all he does while Claude works is shake his fingers, one hand then the other', () => {
   const kinds = ['thinking', 'reading', 'editing', 'running', 'browsing', 'delegating', 'waiting', 'asking', 'working']
   for (const activity of kinds) {
     const at = (tick: number) =>
       pose({ isWorking: true, tick, doing: { activity, tool: '', agents: 1, isBusy: true } })
-    // The finger up, then down; his arms and eyes stay as they are.
-    expect(at(8)).toMatchObject({ head: ' █▜██▛█ ▖', body: '▀██████▀ ' })
-    expect(at(12)).toMatchObject({ head: ' █▜██▛█  ', body: '▀██████▀ ' })
+    // The left hand's finger up, then the right's; his arms and eyes stay put.
+    expect(at(8)).toMatchObject({ head: '▗ █▜██▛█  ', body: ' ▀██████▀ ' })
+    expect(at(12)).toMatchObject({ head: '  █▜██▛█ ▖', body: ' ▀██████▀ ' })
   }
   // The same as the egg drops in.
-  expect(pose({ isWorking: true, tick: 0 })).toMatchObject({ head: ' █▜██▛█ ▖', steam: ' o ' })
+  expect(pose({ isWorking: true, tick: 0 })).toMatchObject({ head: '▗ █▜██▛█  ', steam: ' o ' })
 })
 
-test('he stands still by the egg when the turn ends, finger down', () => {
-  expect(pose({ served: { mark: '✓', yolk: '●' } })).toMatchObject({ head: ' █▜██▛█  ', body: '▀██████▀ ', steam: ' ✓ ' })
-  expect(pose({ served: { mark: 'x', yolk: 'o' } })).toMatchObject({ head: ' █▜██▛█  ', body: '▀██████▀ ', steam: ' x ' })
+test('he stands still by the egg when the turn ends, fingers down', () => {
+  expect(pose({ served: { mark: '✓', yolk: '●' } })).toMatchObject({ head: '  █▜██▛█  ', body: ' ▀██████▀ ', steam: ' ✓ ' })
+  expect(pose({ served: { mark: 'x', yolk: 'o' } })).toMatchObject({ head: '  █▜██▛█  ', body: ' ▀██████▀ ', steam: ' x ' })
 })
 
-test('his finger shows just above the tip of his right hand', () => {
-  expect(figure('open', true)).toEqual({ head: ' █▜██▛█ ▖', body: '▀██████▀ ' })
-  expect(figure('open')).toEqual({ head: ' █▜██▛█  ', body: '▀██████▀ ' })
+test('a finger shows just above the tip of each hand', () => {
+  expect(figure('open', 'left')).toEqual({ head: '▗ █▜██▛█  ', body: ' ▀██████▀ ' })
+  expect(figure('open', 'right')).toEqual({ head: '  █▜██▛█ ▖', body: ' ▀██████▀ ' })
+  expect(figure('open', 'both')).toEqual({ head: '▗ █▜██▛█ ▖', body: ' ▀██████▀ ' })
+  expect(figure('open')).toEqual({ head: '  █▜██▛█  ', body: ' ▀██████▀ ' })
 })
 
 test('Clawd sits at the right of the frame, frying while a turn runs', async ($, on) => {
@@ -251,12 +255,15 @@ test('Clawd sits at the right of the frame, frying while a turn runs', async ($,
   const idle = JSON.stringify(await (await footer($, 120)).drawn())
   const busy = JSON.stringify(await (await footer($, 120, true)).drawn())
 
-  expect(idle).toContain('▀██████▀ ')
+  expect(idle).toContain(' ▀██████▀ ')
   expect(idle).toContain('"color":"claude"')
-  expect(idle).not.toMatch(/~·~|·~·|~ ~/)
+  expect(idle).not.toMatch(/~ ~|~°~|°~°/)
   // Two rows of him while a turn runs, his body over the pan.
-  expect(busy).toMatch(/"children":\["▀██████▀ "\]/)
-  expect(busy).toMatch(/ o |~·~|·~·|~ ~| ~ /)
+  expect(busy).toMatch(/"children":\[" ▀██████▀ "\]/)
+  expect(busy).toMatch(/ o |~ ~|~°~| ~ |°~°/)
+  // The pan glows red while it is on the heat.
+  expect(busy).toContain('"color":"red"')
+  expect(idle).not.toContain('"color":"red"')
 })
 
 test('a narrow row gives his room to the figures', async ($, on) => {
@@ -331,10 +338,18 @@ test('every activity keeps his width', () => {
   }
 })
 
-test('waiting on agents shows how many beside a spinner', () => {
-  const one = pose({ isWorking: true, tick: 8, doing: { activity: 'waiting', tool: '', agents: 2, isBusy: true } })
-  expect(one.steam).toMatch(/^[◜◝◞◟]×2$/)
-  expect(one.mark).toBe('merged')
+test('steam rises over the hot pan whatever the work, the word beside him in its colour', () => {
+  const kinds = ['thinking', 'reading', 'editing', 'running', 'browsing', 'delegating', 'waiting', 'asking', 'working']
+  for (const activity of kinds) {
+    const steam = [8, 10, 12, 14].map(tick =>
+      pose({ isWorking: true, tick, doing: { activity, tool: '', agents: 2, isBusy: true } }))
+    expect(steam.every(one => one.isHot && /^[~° ]{3}$/.test(one.steam))).toBe(true)
+    expect(new Set(steam.map(one => one.steam)).size).toBe(4)
+  }
+  expect(pose({ isWorking: true, tick: 8, doing: { activity: 'waiting', tool: '', agents: 2, isBusy: true } }).mark)
+    .toBe('merged')
+  // Off the heat between turns and once the egg is served.
+  expect(pose({ served: { mark: '✓', yolk: '●' } }).isHot).toBe(false)
 })
 
 test('Clawd keeps working while a background agent runs', async ($, on) => {

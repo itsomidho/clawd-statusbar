@@ -28,11 +28,12 @@ const BLINK_MS = 160
 const SERVED_MS = 2000
 // The egg falls into the pan for the first ticks of a turn.
 const CRACK_TICKS = 4
-const SIZZLE = ['~·~', '·~·', '~ ~', ' ~ ']
+// Steam rising off the egg while it cooks: wisps, and a puff now and then.
+const STEAM = ['~ ~', '~°~', ' ~ ', '°~°']
 // How set the yolk is, by the turn's length so far: runny, then set, then hard.
 const YOLKS: readonly (readonly [number, string])[] = [[30_000, '●'], [10_000, '◉'], [0, 'o']]
-// Clawd's own nine cells (the last his finger's) and the pan's three.
-const MASCOT_WIDTH = 13
+// Clawd's own ten cells (a finger's at each end) and the pan's three.
+const MASCOT_WIDTH = 14
 const GAP = 2
 // Below this the figures need the room more than he does.
 const MASCOT_MIN_COLUMNS = 72
@@ -47,8 +48,6 @@ const AGENTS_EVERY_MS = 1000
 const MAIN = 'main'
 
 const PAN = '\\_/'
-const SPIN = ['◜', '◝', '◞', '◟']
-const GLOBE = ['◐', '◓', '◑', '◒']
 
 // What each tool has him doing; a tool not named here is plain cooking.
 const ACTIVITIES: Record<string, string> = {
@@ -78,12 +77,6 @@ function frame<T>(tick: number, every: number, frames: readonly T[]) {
   return frames[Math.floor(tick / every) % frames.length]!
 }
 
-// How many agents run, in the two cells after the spinner.
-function count(agents: number) {
-  if (agents === 0) return '  '
-  return agents > 9 ? '9+' : `×${agents}`
-}
-
 // The two lines left of him: what he is doing, then the tool or the agents.
 export function caption(doing: Doing): [string, string] {
   if (!doing.isBusy) return ['', '']
@@ -101,16 +94,17 @@ export function yolk(tick: number) {
 }
 
 // Clawd as on the welcome screen, without his legs: his body 12 wide with two
-// eye holes and his arms out on the third row, in a grid 18 wide and 4 tall
-// that leaves room for one finger, raised just above the tip of his right hand.
-// Each text cell holds 2x2 of it in quarter blocks: nine cells by two rows.
-const BODY = '..############....'
-const ARMS = '################..'
-const FINGER = { row: 1, at: 16 }
+// eye holes and his arms out on the third row, in a grid 20 wide and 4 tall
+// that leaves room for a finger just above the tip of each hand. Each text cell
+// holds 2x2 of it in quarter blocks: ten cells by two rows.
+const BODY = '....############....'
+const ARMS = '..################..'
+const FINGERS = { left: 1, right: 18 }
+const FINGER_ROW = 1
 const QUARTERS = ' ▗▖▄▝▐▞▟▘▚▌▙▀▜▛█'
 
 // Where his eye holes are: open, or shut while he blinks.
-export const EYES = { open: { row: 1, at: [4, 11] }, shut: { row: 1, at: [] } } as const
+export const EYES = { open: { row: 1, at: [6, 13] }, shut: { row: 1, at: [] } } as const
 export type Eyes = keyof typeof EYES
 
 // A grid of '#' and '.' to two rows of quarter blocks.
@@ -118,22 +112,32 @@ export function blocks(grid: readonly string[]) {
   const at = (r: number, c: number) => (grid[r]?.[c] === '#' ? 1 : 0)
   return [0, 2].map(r => {
     let row = ''
-    for (let c = 0; c < 18; c += 2) {
+    for (let c = 0; c < 20; c += 2) {
       row += QUARTERS[at(r, c) * 8 + at(r, c + 1) * 4 + at(r + 1, c) * 2 + at(r + 1, c + 1)]
     }
     return row
   })
 }
 
-// His two rows: the eyes cut out, and the finger shown or hidden.
-export function figure(eyes: Eyes, hasFinger = false) {
+// Which fingers are up: none, the left, the right or both.
+export type Fingers = 'none' | 'left' | 'right' | 'both'
+
+// His two rows: the eyes cut out, and each finger shown or hidden.
+export function figure(eyes: Eyes, fingers: Fingers = 'none') {
   const rows = [BODY, BODY, ARMS, BODY].map(row => [...row])
   const look = EYES[eyes]
   for (const c of look.at) rows[look.row]![c] = '.'
-  if (hasFinger) rows[FINGER.row]![FINGER.at] = '#'
+  if (fingers === 'left' || fingers === 'both') rows[FINGER_ROW]![FINGERS.left] = '#'
+  if (fingers === 'right' || fingers === 'both') rows[FINGER_ROW]![FINGERS.right] = '#'
   const [head, body] = blocks(rows.map(row => row.join('')))
 
   return { head: head!, body: body! }
+}
+
+// Each kind of work's colour, for the word beside him.
+const MARKS: Record<string, string> = {
+  thinking: 'claude', reading: 'suggestion', running: 'success', browsing: 'ide',
+  delegating: 'merged', waiting: 'merged', asking: 'warning',
 }
 
 export function mascot(state: {
@@ -142,43 +146,26 @@ export function mascot(state: {
   const { isWorking, tick, isBlinking, served, doing } = state
   const eyes: Eyes = isBlinking ? 'shut' : 'open'
   if (isWorking) {
-    // All he does while Claude works is raise a finger and put it down again.
-    // What the work is shows over the pan.
-    const still = figure(eyes, frame(tick, 4, [true, false]))
+    // All he does while Claude works is shake his fingers, one hand's up and
+    // then the other's. The pan is on the heat; the word beside him says what
+    // the work is.
+    const still = figure(eyes, frame(tick, 4, ['left', 'right'] as const))
+    const mark = MARKS[doing?.activity ?? ''] ?? 'claude'
     // The egg drops into the empty pan first.
-    if (tick < CRACK_TICKS) return { ...still, steam: ' o ', mark: 'claude', pan: PAN }
-    const pan = `\\${yolk(tick)}/`
-    switch (doing?.activity) {
-      // Thought dots rise from the pan.
-      case 'thinking':
-        return { ...still, steam: frame(tick, 4, ['   ', '·  ', '·· ', '···']), mark: 'claude', pan }
-      // The recipe, read across.
-      case 'reading':
-        return { ...still, steam: frame(tick, 4, ['≡  ', ' ≡ ', '  ≡', ' ≡ ']), mark: 'suggestion', pan }
-      // A shell prompt, its cursor blinking.
-      case 'running':
-        return { ...still, steam: frame(tick, 4, ['>_ ', '>  ']), mark: 'success', pan }
-      case 'browsing':
-        return { ...still, steam: ` ${frame(tick, 2, GLOBE)} `, mark: 'ide', pan }
-      // Other cooks at work, how many beside the spinner.
-      case 'delegating':
-      case 'waiting':
-        return { ...still, steam: `${frame(tick, 2, SPIN)}${count(doing.agents)}`, mark: 'merged', pan }
-      // He needs an answer.
-      case 'asking':
-        return { ...still, steam: frame(tick, 4, [' ! ', '   ']), mark: 'warning', pan }
-    }
-
-    return { ...still, steam: frame(tick, 2, SIZZLE), mark: 'claude', pan }
+    if (tick < CRACK_TICKS) return { ...still, steam: ' o ', mark, pan: PAN, isHot: true }
+    // Then it cooks, steam rising off it.
+    return { ...still, steam: frame(tick, 2, STEAM), mark, pan: `\\${yolk(tick)}/`, isHot: true }
   }
 
-  // Standing by the egg, done (✓) or cut short (x).
+  // Standing by the egg, done (✓) or cut short (x), the pan off the heat.
   if (served !== null) {
     const isDone = served.mark === '✓'
-    return { ...figure(eyes), steam: ` ${served.mark} `, mark: isDone ? 'success' : 'error', pan: `\\${served.yolk}/` }
+    return {
+      ...figure(eyes), steam: ` ${served.mark} `, mark: isDone ? 'success' : 'error', pan: `\\${served.yolk}/`, isHot: false,
+    }
   }
 
-  return { ...figure(eyes), steam: '   ', mark: 'claude', pan: PAN }
+  return { ...figure(eyes), steam: '   ', mark: 'claude', pan: PAN, isHot: false }
 }
 
 // One group per line of the section: the figures, then the project.
@@ -223,7 +210,7 @@ let lines = ''
 
 function poseOf(n: number) {
   const one = mascot({ isWorking: true, tick: n, isBlinking: false, served: null, doing: doingNow })
-  return `${one.head}${one.body}${one.steam}${one.pan}${one.mark}`
+  return `${one.head}${one.body}${one.steam}${one.pan}${one.mark}${one.isHot}`
 }
 
 function tickOn($: EngineInterface) {
@@ -513,13 +500,16 @@ export const register: Register = (on, options) => {
             <Box flexDirection="column" marginLeft={GAP} flexShrink={0}>
               <Text>
                 <Text color="claude">{clawd.head}</Text>
-                <Text color={clawd.mark}>{' ' + clawd.steam}</Text>
+                {/* Steam is pale while the egg cooks; the egg dropping in, the
+                    ✓ and the x take their own colour. */}
+                <Text color={clawd.mark} dimColor={clawd.isHot && clawd.steam !== ' o '}>{' ' + clawd.steam}</Text>
               </Text>
               <Text>
                 <Text color="claude">{clawd.body}</Text>
-                <Text dimColor>{' ' + clawd.pan[0]}</Text>
+                {/* The pan glows red-hot while it is on the heat. */}
+                <Text color={clawd.isHot ? 'red' : undefined} dimColor={!clawd.isHot}>{' ' + clawd.pan[0]}</Text>
                 <Text color="yellow">{clawd.pan[1]}</Text>
-                <Text dimColor>{clawd.pan[2]}</Text>
+                <Text color={clawd.isHot ? 'red' : undefined} dimColor={!clawd.isHot}>{clawd.pan[2]}</Text>
               </Text>
             </Box>
           )}

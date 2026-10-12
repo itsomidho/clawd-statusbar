@@ -31,22 +31,26 @@ const CRACK_TICKS = 4
 const SIZZLE = ['~·~', '·~·', '~ ~', ' ~ ']
 // How set the yolk is, by the turn's length so far: runny, then set, then hard.
 const YOLKS: readonly (readonly [number, string])[] = [[30_000, '●'], [10_000, '◉'], [0, 'o']]
-// Clawd's own nine cells and the pan's three, a space between.
-const MASCOT_WIDTH = 13
+// Clawd's own five cells and the pan's three, a space between.
+const MASCOT_WIDTH = 9
 const GAP = 2
 // Below this the figures need the room more than he does.
 const MASCOT_MIN_COLUMNS = 72
 // The word for what he is doing, left of him, and under it the tool or how many
 // agents run; on a row this wide or wider, so the figures keep their room.
-const CAPTION_WIDTH = 10
-const CAPTION_MIN_COLUMNS = 96
+const CAPTION_WIDTH = 8
+const CAPTION_MIN_COLUMNS = 84
 // How often the session's agents are counted: a background agent runs with no
 // turn of the main loop, so the prompt's own `isWorking` says nothing of it.
 const AGENTS_EVERY_MS = 1000
 // The main loop's key among the loops' tools in flight.
 const MAIN = 'main'
 
-const BODY = '▝▜█████▛▘'
+// Clawd in two rows of quarter blocks: his head with two eyes over his body,
+// an arm each side (down, or raised beside his head) and two legs that step.
+const HEAD = '▛█▜'
+const SHUT = '███'
+const LEGS = ['▛▀▜', '▜▀▛']
 const PAN = '\\_/'
 const SPIN = ['◜', '◝', '◞', '◟']
 const GLOBE = ['◐', '◓', '◑', '◒']
@@ -64,7 +68,7 @@ const ACTIVITIES: Record<string, string> = {
 const BROWSER = /^mcp__.*(chrome|devtools|browser|playwright)/i
 const CAPTIONS: Record<string, string> = {
   thinking: 'thinking', reading: 'reading', editing: 'editing', running: 'running',
-  browsing: 'browsing', delegating: 'delegating', asking: 'asking', waiting: 'waiting', working: 'cooking',
+  browsing: 'browsing', delegating: 'spawning', asking: 'asking', waiting: 'waiting', working: 'cooking',
 }
 const IDLE: Doing = { activity: 'idle', tool: '', agents: 0, isBusy: false }
 
@@ -98,53 +102,60 @@ export function yolk(tick: number) {
   return YOLKS.find(([from]) => ms >= from)![1]
 }
 
+type Arm = 'down' | 'up'
+
+// His two rows: the arms' upper halves around the head, then the arms' lower
+// halves around the legs. A raised arm stands in the column beside his head.
+export function figure(isBlinking: boolean, left: Arm, right: Arm, isStepping = false) {
+  const head = `${left === 'up' ? '▗' : ' '}${isBlinking ? SHUT : HEAD}${right === 'up' ? '▖' : ' '}`
+  const body = `${left === 'up' ? '▝' : '▀'}${LEGS[isStepping ? 1 : 0]}${right === 'up' ? '▘' : '▀'}`
+
+  return { head, body }
+}
+
 export function mascot(state: {
   isWorking: boolean; tick: number; isBlinking: boolean; served: Served | null; doing?: Doing
 }) {
   const { isWorking, tick, isBlinking, served, doing } = state
-  const eyes = isBlinking ? '█████' : '▛███▜'
+  const pose = (left: Arm, right: Arm, isStepping = false) => figure(isBlinking, left, right, isStepping)
   if (isWorking) {
-    if (tick < CRACK_TICKS) {
-      return { head: ` ▐${eyes}▌▗`, body: BODY, steam: ' o ', mark: 'claude', pan: PAN }
-    }
+    if (tick < CRACK_TICKS) return { ...pose('down', 'up'), steam: ' o ', mark: 'claude', pan: PAN }
     const pan = `\\${yolk(tick)}/`
-    const still = ` ▐${eyes}▌ `
-    const holding = ` ▐${eyes}▌▗`
     switch (doing?.activity) {
-      // Mulling it over: thought dots rise from the pan.
+      // Mulling it over, a hand to his chin: thought dots rise from the pan.
       case 'thinking':
-        return { head: still, body: BODY, steam: frame(tick, 3, ['   ', '·  ', '·· ', '···']), mark: 'claude', pan }
+        return { ...pose('down', 'up'), steam: frame(tick, 3, ['   ', '·  ', '·· ', '···']), mark: 'claude', pan }
       // The recipe held up and read across.
       case 'reading':
-        return { head: holding, body: BODY, steam: frame(tick, 3, ['≡  ', ' ≡ ', '  ≡', ' ≡ ']), mark: 'suggestion', pan }
-      // A shell prompt, its cursor blinking.
+        return { ...pose('down', 'up'), steam: frame(tick, 3, ['≡  ', ' ≡ ', '  ≡', ' ≡ ']), mark: 'suggestion', pan }
+      // Running on the spot by a shell prompt, its cursor blinking.
       case 'running':
-        return { head: `▖▐${eyes}▌ `, body: BODY, steam: frame(tick, 3, ['>_ ', '>  ']), mark: 'success', pan }
+        return { ...pose('up', 'down', frame(tick, 2, [false, true])), steam: frame(tick, 3, ['>_ ', '>  ']), mark: 'success', pan }
       case 'browsing':
-        return { head: holding, body: BODY, steam: ` ${frame(tick, 2, GLOBE)} `, mark: 'ide', pan }
+        return { ...pose('down', 'up'), steam: ` ${frame(tick, 2, GLOBE)} `, mark: 'ide', pan }
       // Tapping his feet while other cooks work, how many beside the spinner.
       case 'delegating':
-      case 'waiting': {
-        const head = frame(tick, 3, [still, `▖▐${eyes}▌ `, still, holding])
-        return { head, body: BODY, steam: `${frame(tick, 1, SPIN)}${count(doing.agents)}`, mark: 'merged', pan }
-      }
+      case 'waiting':
+        return {
+          ...pose('down', 'down', frame(tick, 3, [false, true])),
+          steam: `${frame(tick, 1, SPIN)}${count(doing.agents)}`, mark: 'merged', pan,
+        }
       // Both arms up: he needs an answer.
       case 'asking':
-        return { head: `▖▐${eyes}▌▗`, body: BODY, steam: frame(tick, 3, [' ! ', '   ']), mark: 'warning', pan }
+        return { ...pose('up', 'up'), steam: frame(tick, 3, [' ! ', '   ']), mark: 'warning', pan }
     }
-    // An arm up on one side, then the other: the flip.
+    // One arm up, then the other: the flip.
     const isLeft = Math.floor(tick / 2) % 2 === 0
-    const head = isLeft ? `▖▐${eyes}▌ ` : holding
 
-    return { head, body: BODY, steam: SIZZLE[tick % SIZZLE.length]!, mark: 'claude', pan }
+    return { ...pose(isLeft ? 'up' : 'down', isLeft ? 'down' : 'up'), steam: SIZZLE[tick % SIZZLE.length]!, mark: 'claude', pan }
   }
 
   if (served !== null) {
     const mark = served.mark === '✓' ? 'success' : 'error'
-    return { head: ` ▐${eyes}▌▗`, body: BODY, steam: ` ${served.mark} `, mark, pan: `\\${served.yolk}/` }
+    return { ...pose('down', 'up'), steam: ` ${served.mark} `, mark, pan: `\\${served.yolk}/` }
   }
 
-  return { head: ` ▐${eyes}▌ `, body: BODY, steam: '   ', mark: 'claude', pan: PAN }
+  return { ...pose('down', 'down'), steam: '   ', mark: 'claude', pan: PAN }
 }
 
 // One group per line of the section: the figures, then the project.

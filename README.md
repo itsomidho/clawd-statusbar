@@ -45,7 +45,7 @@ Everything that is not always useful appears only when it applies, so most of th
 | delegating, or waiting on background agents | taps his feet by a spinner and the count, `◜×2` |
 | asking you (AskUserQuestion, plan approval) | both arms up with a `!` |
 
-A background agent keeps him busy after the main turn ends: he shows what the agent is doing, and serves the egg only once every agent is done. He steps aside on terminals narrower than 72 columns, and the caption on his left below 96.
+A background agent keeps him busy after the main turn ends: he shows what the agent is doing, and serves the egg only once every agent is done. He steps aside on terminals narrower than 72 columns, and the caption on his left below 84.
 
 ## Install
 

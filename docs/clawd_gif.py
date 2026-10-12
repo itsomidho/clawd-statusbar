@@ -55,7 +55,7 @@ def yolk(tick):
 SPIN = "◜◝◞◟"
 GLOBE = "◐◓◑◒"
 CAPTIONS = {"thinking": "thinking", "reading": "reading", "editing": "editing", "running": "running",
-            "browsing": "browsing", "delegating": "delegating", "asking": "asking", "waiting": "waiting",
+            "browsing": "browsing", "delegating": "spawning", "asking": "asking", "waiting": "waiting",
             "working": "cooking"}
 
 
@@ -63,33 +63,39 @@ def loop(tick, every, frames):
     return frames[(tick // every) % len(frames)]
 
 
+def figure(blink, left, right, step=False):
+    """His two rows, as figure() draws them: arms up or down, legs stepping."""
+    head = ("▗" if left else " ") + ("███" if blink else "▛█▜") + ("▖" if right else " ")
+    body = ("▝" if left else "▀") + ("▜▀▛" if step else "▛▀▜") + ("▘" if right else "▀")
+    return head, body
+
+
 def mascot(working, tick, blink, served, doing=None, agents=0):
-    """(head, steam, steam colour, yolk) as mascot() draws them."""
-    eyes = "█████" if blink else "▛███▜"
+    """(head, body, steam, steam colour, yolk) as mascot() draws them."""
+    pose = lambda left, right, step=False: figure(blink, left, right, step)
     if working:
         if tick < 4:
-            return f" ▐{eyes}▌▗", " o ", CLAUDE, "_"
+            return (*pose(False, True), " o ", CLAUDE, "_")
         y = yolk(tick)
-        still, holding, left = f" ▐{eyes}▌ ", f" ▐{eyes}▌▗", f"▖▐{eyes}▌ "
         if doing == "thinking":
-            return still, loop(tick, 3, ["   ", "·  ", "·· ", "···"]), CLAUDE, y
+            return (*pose(False, True), loop(tick, 3, ["   ", "·  ", "·· ", "···"]), CLAUDE, y)
         if doing == "reading":
-            return holding, loop(tick, 3, ["≡  ", " ≡ ", "  ≡", " ≡ "]), SUGGESTION, y
+            return (*pose(False, True), loop(tick, 3, ["≡  ", " ≡ ", "  ≡", " ≡ "]), SUGGESTION, y)
         if doing == "running":
-            return left, loop(tick, 3, [">_ ", ">  "]), GREEN, y
+            return (*pose(True, False, loop(tick, 2, [False, True])), loop(tick, 3, [">_ ", ">  "]), GREEN, y)
         if doing == "browsing":
-            return holding, f" {loop(tick, 2, GLOBE)} ", IDE, y
+            return (*pose(False, True), f" {loop(tick, 2, GLOBE)} ", IDE, y)
         if doing in ("delegating", "waiting"):
             count = "  " if agents == 0 else "9+" if agents > 9 else f"×{agents}"
-            return loop(tick, 3, [still, left, still, holding]), loop(tick, 1, SPIN) + count, MERGED, y
+            return (*pose(False, False, loop(tick, 3, [False, True])), loop(tick, 1, SPIN) + count, MERGED, y)
         if doing == "asking":
-            return f"▖▐{eyes}▌▗", loop(tick, 3, [" ! ", "   "]), WARNING, y
-        head = left if (tick // 2) % 2 == 0 else holding
-        return head, SIZZLE[tick % 4], CLAUDE, y
+            return (*pose(True, True), loop(tick, 3, [" ! ", "   "]), WARNING, y)
+        left = (tick // 2) % 2 == 0
+        return (*pose(left, not left), SIZZLE[tick % 4], CLAUDE, y)
     if served:
         mark, y = served
-        return f" ▐{eyes}▌▗", f" {mark} ", GREEN if mark == "✓" else RED, y
-    return f" ▐{eyes}▌ ", "   ", CLAUDE, "_"
+        return (*pose(False, True), f" {mark} ", GREEN if mark == "✓" else RED, y)
+    return (*pose(False, False), "   ", CLAUDE, "_")
 
 
 def caption(working, doing, tool, agents):
@@ -99,10 +105,10 @@ def caption(working, doing, tool, agents):
     return CAPTIONS.get(doing or "working", ""), count or tool
 
 
-BOX = 84              # the frame's width in cells
+BOX = 85              # the frame's width in cells, on a 91-column terminal
 INNER = BOX - 4       # less border and padding
-MASCOT = 13
-CAPTION = 10
+MASCOT = 9
+CAPTION = 8
 GAP = 2
 INDENT = 2
 COLS = INDENT + BOX + 2
@@ -121,8 +127,8 @@ def parts_line(parts):
 
 
 def frame(working, tick, blink, served, ctx, dirty, review, doing=None, tool="", agents=0, main=None):
-    head, steam, steam_c, y = mascot(working, tick, blink, served, doing, agents)
-    word, detail = caption(working, doing, tool, agents)
+    head, figure_body, steam, steam_c, y = mascot(working, tick, blink, served, doing, agents)
+    word, detail = (part[:CAPTION] for part in caption(working, doing, tool, agents))
     main = working if main is None else main
     figures = parts_line([("◆ Opus 5.5", CYAN), (f"CTX {ctx}% {ctx * 10}k", DIM),
                           ("5h 18% ↻ 2h 14m", DIM)])
@@ -144,7 +150,7 @@ def frame(working, tick, blink, served, ctx, dirty, review, doing=None, tool="",
 
     rows.append(body(figures, [(word.rjust(CAPTION), steam_c)], [(head, CLAUDE), (" " + steam, steam_c)]))
     pan = [(" \\", DIM), ("_" if y == "_" else y, DIM if y == "_" else YELLOW), ("/", DIM)]
-    rows.append(body(project, [(detail.rjust(CAPTION), DIM)], [("▝▜█████▛▘", CLAUDE)] + pan))
+    rows.append(body(project, [(detail.rjust(CAPTION), DIM)], [(figure_body, CLAUDE)] + pan))
     rows.append([(" " * INDENT + "╰" + "─" * (BOX - 2) + "╯", BORDER)])
 
     img = Image.new("RGB", (COLS * CW + 2 * PAD, ROWS * CH + 2 * PAD), BG)

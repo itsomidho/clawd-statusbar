@@ -80,6 +80,28 @@ The figures come from one script, `scripts/statusline.sh`, which reads the sessi
 
 The script also works on its own as a classic `statusLine` command in `settings.json`, drawing the same figures as plain lines.
 
+## Troubleshooting
+
+**The bar shows no model, context or usage limits.** Versions before 1.8.0 read those figures with `jq`, and showed nothing on a machine without it. Update: `claude plugin update clawd-statusbar@itsomidho`, then `/reload-plugins`. The 7d limit shows only once it is half used, and the limits only when Claude Code reports them for your account.
+
+**The bar shows `status bar: …` instead of the figures.** The script failed, and that line says why. Run it yourself to see more: `echo '{}' | bash scripts/statusline.sh` in the plugin's folder (`~/.claude/plugins/cache/itsomidho/clawd-statusbar/<version>` once installed).
+
+**The PR, MR or pipeline item is missing.** Log in once with `gh auth login` (GitHub) or `glab auth login` (GitLab). The status is fetched in the background every 60 seconds, so it can take a minute to appear.
+
+**Clawd doesn't show.** He steps aside on terminals narrower than 72 columns, and his caption below 84. Check the Clawd setting in `/plugin` too.
+
+**`Host key verification failed` on install or update.** Claude Code fetched the plugin from GitHub over SSH, and this machine has no SSH key for GitHub. Either add one (`ssh-keygen -t ed25519`, add it to your GitHub account, then `ssh -T git@github.com` once to accept GitHub's host key), or have git use HTTPS for GitHub:
+
+```
+git config --global url."https://github.com/".insteadOf git@github.com:
+```
+
+Installing from a shell (`claude plugin install …`) also falls back to HTTPS by itself; updating does not.
+
+**`/statusbar` is listed twice, or the bar draws twice.** Two copies of the plugin are loaded, such as the installed one and a working copy started with `--plugin-dir`. Run one: start Claude Code without `--plugin-dir`, or disable the installed copy with `/plugin` while you work on yours.
+
+**The task board is above the bar, not below it (or the other way round).** With [clawd-tasks](https://github.com/itsomidho/clawd-tasks) installed, the two plugins each add their frame under the prompt, and their order depends on which one Claude Code loads first; neither plugin can choose it.
+
 ## Development
 
 ```

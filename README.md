@@ -51,10 +51,12 @@ A background agent keeps him busy after the main turn ends: he shows what the ag
 In Claude Code, type:
 
 ```
-/plugin install clawd-statusbar --marketplace itsomidho/clawd-statusbar
+/plugin install clawd-statusbar --marketplace itsomidho/claude-plugins
 ```
 
 Answer `y` to add the marketplace, then choose a scope. The bar appears right away; no restart.
+
+The [`itsomidho` marketplace](https://github.com/itsomidho/claude-plugins) also lists [clawd-tasks](https://github.com/itsomidho/clawd-tasks), a live task board; each plugin works on its own.
 
 `/statusbar` turns it off and on.
 

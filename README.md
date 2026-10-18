@@ -1,5 +1,7 @@
 # clawd-statusbar
 
+[![Latest release](https://img.shields.io/github/v/release/itsomidho/clawd-statusbar?label=release&color=7fbeb3)](https://github.com/itsomidho/clawd-statusbar/releases)
+
 A status bar for [Claude Code](https://claude.com/claude-code) that sits in a thin frame under the prompt, with Clawd, the little creature from Claude Code's welcome screen, frying an egg on the right while Claude works.
 
 ![Clawd from the welcome screen in the status bar through one turn: thinking, reading, editing, running, browsing, then waiting on a background agent](docs/clawd.gif)

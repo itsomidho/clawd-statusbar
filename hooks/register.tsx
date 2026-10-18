@@ -494,7 +494,10 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         {engine}
-        <Box borderStyle="round" borderDimColor paddingX={1} width={width} flexDirection="row">
+        {/* No fixed width: the frame stretches across the footer's row. While a
+            pane is docked, viewport.columns is only the conversation's column,
+            but the footer spans the whole terminal; `width` still sizes the text. */}
+        <Box borderStyle="round" borderDimColor paddingX={1} marginRight={TRAIL} flexDirection="row">
           <Box flexDirection="column" flexGrow={1}>
             {rows.map((row, i) => (
               <Text key={`row${i}`} wrap="truncate-end">

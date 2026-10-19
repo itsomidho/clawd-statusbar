@@ -413,3 +413,26 @@ test('his poses change on a beat of two ticks, never on the odd ones', () => {
     for (let tick = 5; tick < 300; tick += 2) expect(at(tick)).toBe(at(tick - 1))
   }
 })
+
+// A /clear starts a new session with empty $.state but keeps the module, so
+// the bar is written again even when its figures are the same as before.
+test('a /clear writes the bar again though nothing in it changed', async ($, on) => {
+  const ran: Record<string, string>[] = []
+  let writes = 0
+  on('state.set', (_$, e, next) => {
+    if (e.key === 'groups') writes += 1
+    return next(e)
+  })
+  on('session.end', (_$, e) => ({ sessionId: e.sessionId }))
+  await start($, on, ran)
+  expect(writes).toBe(1)
+
+  const before = ran.length
+  await $.session.end({ reason: 'clear', sessionId: 'old', resume: { id: 'old' } } as never)
+  for (let i = 0; i < 1000 && ran.length === before; i++) await Promise.resolve()
+  for (let i = 0; i < 100; i++) await Promise.resolve()
+
+  expect(ran.length).toBeGreaterThan(before)
+  expect(writes).toBe(2)
+  expect(JSON.stringify(await (await footer($)).drawn())).toContain('CTX 24%')
+})

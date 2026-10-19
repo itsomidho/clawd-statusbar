@@ -346,7 +346,10 @@ async function refresh($: EngineInterface) {
   // /statusbar may have turned it off while the script ran.
   if (isOff) return
   const key = JSON.stringify(groups)
-  if (key === lines) return
+  // A /clear starts a new session whose $.state is empty while this module
+  // (and `lines`) lives on, so an unchanged figure must still be written when
+  // the stored bar is gone.
+  if (key === lines && (await read($, bar)).length > 0) return
   lines = key
   await update($, bar, () => groups)
 }
@@ -405,6 +408,19 @@ export const register: Register = (on, options) => {
     })
 
     return next(e)
+  })
+
+  // A /clear ends the session without a new session.start: the module and its
+  // timers go on, but the new session's $.state starts empty. Forget what was
+  // last written and draw the bar again once the new session is up.
+  on('session.end', async ($, e, next) => {
+    const ended = await next(e)
+    if (e.reason === 'clear') {
+      lines = ''
+      shown = JSON.stringify(IDLE)
+      $.clock.after(250, () => void show($).catch(() => {}))
+    }
+    return ended
   })
 
   // The main loop's turns; a subagent's run raises no turn.start.

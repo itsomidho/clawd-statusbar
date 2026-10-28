@@ -176,14 +176,23 @@ const blinking = atom({ plugin: 'clawd-statusbar', key: 'isBlinking' } as const,
 const plated = atom({ plugin: 'clawd-statusbar', key: 'served' } as const, null)
 const busy = atom({ plugin: 'clawd-statusbar', key: 'doing' } as const, IDLE)
 
+// The clawd family's look (shared with clawd-git and clawd-debug): the accent,
+// the frame colour, and chips (dark text on a colour).
+const ACCENT = '#d97757'
+const BORDER = '#5c6370'
+const CHIP_TEXT = '#1e2127'
+
 // What each kind of part is drawn in, so a line of several reads as several:
 // the path, the branch and the change count do not run together. A kind with
 // no colour here is dim, as the separators are.
 const COLORS: Record<string, string> = {
-  model: 'cyan', path: 'blue', branch: 'magenta', dirty: 'yellow', sync: 'green',
-  worktree: 'cyan', alert: 'red', error: 'red',
-  'review-ok': 'green', 'review-fail': 'red', 'review-run': 'yellow',
+  model: ACCENT, path: '#61afef', dirty: '#e5c07b', sync: '#98c379',
+  worktree: '#56b6c2', alert: '#e06c75', error: '#e06c75',
+  'review-ok': '#98c379', 'review-fail': '#e06c75', 'review-run': '#e5c07b',
 }
+// Kinds drawn as a chip: the text on this colour, a space each side.
+const CHIPS: Record<string, string> = { branch: '#c678dd' }
+
 
 let isOff = false
 // The person's settings (the manifest's userConfig), read as the module loads.
@@ -367,19 +376,59 @@ async function show($: EngineInterface) {
 }
 
 // As many parts as the line holds, in order; one that overflows is skipped, not
-// a full stop, so a shorter one behind it still shows.
-export function fit<T extends { text: string }>(all: readonly T[], room: number) {
+// a full stop, so a shorter one behind it still shows. Before anything is
+// skipped, the path gives up its room (~/…/project, then the project alone)
+// and a long branch is cut with … : the branch is what the line is for.
+export function fit<T extends { text: string; kind?: string }>(all: readonly T[], room: number) {
+  // A chip's text is drawn with a space each side.
+  const cells = (part: T, text = part.text) => [...text].length + (part.kind !== undefined && CHIPS[part.kind] ? 2 : 0)
+  const width = (list: readonly T[]) => list.reduce((n, part, i) => n + cells(part) + (i === 0 ? 0 : SEP.length), 0)
+  let parts = [...all]
+  for (const shorten of [shortPath, lastFolder]) {
+    if (width(parts) <= room) break
+    parts = parts.map(part => (part.kind === 'path' ? { ...part, text: shorten(part.text) } : part))
+  }
   const kept: T[] = []
   let used = 0
-  for (const part of all) {
-    const width = [...part.text].length + (kept.length === 0 ? 0 : SEP.length)
-    if (used + width <= room) {
-      kept.push(part)
-      used += width
+  parts.forEach((part, at) => {
+    const sep = kept.length === 0 ? 0 : SEP.length
+    let text = part.text
+    // A branch that does not fit whole is cut, if a readable start is left,
+    // leaving room for the short marks behind it (●4, ↑1, ≡2).
+    if (part.kind === 'branch' && used + sep + cells(part) > room) {
+      const marks = parts.slice(at + 1).filter(one => [...one.text].length <= SHORT_MARK)
+      const reserve = marks.reduce((n, one) => n + [...one.text].length + SEP.length, 0)
+      const left = room - used - sep - reserve - (cells(part) - [...text].length)
+      const cut = left >= MIN_BRANCH ? left : room - used - sep - (cells(part) - [...text].length)
+      if (cut >= MIN_BRANCH) text = [...text].slice(0, cut - 1).join('') + '…'
     }
-  }
+    const w = cells(part, text) + sep
+    if (used + w <= room) {
+      kept.push(text === part.text ? part : { ...part, text })
+      used += w
+    }
+  })
 
   return kept
+}
+
+// A mark this short (●4, ↑1 ↓2, ≡3) keeps its room when a branch is cut.
+const SHORT_MARK = 8
+
+// The shortest a cut branch gets: "⎇ " and a few letters before the "…".
+const MIN_BRANCH = 10
+
+// /home/me/a/b/project -> ~/…/project; ~/project stays.
+function shortPath(path: string): string {
+  const at = path.lastIndexOf('/')
+  if (at <= 0) return path
+  const name = path.slice(at + 1)
+  const head = path.startsWith('~') ? '~/…/' : '…/'
+  return path.length > head.length + name.length ? head + name : path
+}
+
+function lastFolder(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1) || path
 }
 
 export const register: Register = (on, options) => {
@@ -514,14 +563,14 @@ export const register: Register = (on, options) => {
             pane is docked, viewport.columns is only the conversation's column,
             but the footer spans the whole terminal; `width` still sizes the text.
             No right margin: the row already ends where the left indent begins. */}
-        <Box borderStyle="round" borderDimColor paddingX={1} flexDirection="row">
+        <Box borderStyle="round" borderColor={BORDER} paddingX={1} flexDirection="row">
           <Box flexDirection="column" flexGrow={1}>
             {rows.map((row, i) => (
               <Text key={`row${i}`} wrap="truncate-end">
                 {row.flatMap((part, j) => {
                   const text = (
-                    <Text key={`p${i}-${j}`} color={COLORS[part.kind]} dimColor={COLORS[part.kind] === undefined}>
-                      {part.text}
+                    <Text key={`p${i}-${j}`} color={CHIPS[part.kind] ? CHIP_TEXT : COLORS[part.kind]} backgroundColor={CHIPS[part.kind]} bold={CHIPS[part.kind] !== undefined || part.kind === 'model'} dimColor={COLORS[part.kind] === undefined && CHIPS[part.kind] === undefined}>
+                      {CHIPS[part.kind] ? ` ${part.text} ` : part.text}
                     </Text>
                   )
 

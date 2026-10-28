@@ -90,6 +90,17 @@ test('fit joins in order and skips a part that overflows', () => {
   expect(text(fit([{ text: 'CTX 24%' }, { text: '5h 20%' }], 15))).toBe('CTX 24%')
   expect(text(fit(three, 18))).toBe('CTX 24% · CPU 8%')
   expect(fit(parts(FIGURES), 2)).toEqual([])
+  // The branch is kept: the path gives up its room first, then a long branch is cut.
+  const repo = [
+    { kind: 'path', text: '/mnt/Pool/Projects/wp-local-dev/sites/tabdeal-wp-academy' },
+    { kind: 'branch', text: '⎇ Content---Analysis---develop-backend' },
+    { kind: 'dirty', text: '●6' },
+  ]
+  expect(text(fit(repo, 200))).toBe('/mnt/Pool/Projects/wp-local-dev/sites/tabdeal-wp-academy · ⎇ Content---Analysis---develop-backend · ●6')
+  expect(text(fit(repo, 70))).toBe('…/tabdeal-wp-academy · ⎇ Content---Analysis---develop-backend · ●6')
+  // The branch chip takes a space each side, so 2 cells fewer for its name.
+  expect(text(fit(repo, 50))).toBe('tabdeal-wp-academy · ⎇ Content---Analysis-… · ●6')
+  expect(text(fit([{ kind: 'path', text: '~/Projects/clawd-git' }, { kind: 'branch', text: '⎇ main' }], 40))).toBe('~/Projects/clawd-git · ⎇ main')
 })
 
 test('session.start reads the parts layout', async ($, on) => {
@@ -120,10 +131,12 @@ test('the section is two framed rows under the engine line', async ($, on) => {
 
   // Each field of the project line is its own colour, so they do not run together.
   const row = JSON.stringify((await ui.drawn() as { children: unknown[] }).children[1])
-  expect(row).toContain('{"color":"blue","dimColor":false},"children":["~/Documents')
-  expect(row).toContain('{"color":"magenta","dimColor":false},"children":["⎇ feature')
-  expect(row).toContain('{"color":"yellow","dimColor":false},"children":["●4"]')
-  expect(row).toContain('{"color":"cyan","dimColor":false},"children":["◆ Opus 5"]')
+  // The family's colours; the branch is a chip (dark text on purple).
+  expect(row).toContain('{"color":"#61afef","bold":false,"dimColor":false},"children":["~/Documents')
+  expect(row).toContain('{"color":"#1e2127","backgroundColor":"#c678dd","bold":true,"dimColor":false},"children":[" ⎇ feature')
+  expect(row).toContain('{"color":"#e5c07b","bold":false,"dimColor":false},"children":["●4"]')
+  expect(row).toContain('"borderColor":"#5c6370"')
+  expect(row).toContain('{"color":"#d97757","bold":true,"dimColor":false},"children":["◆ Opus 5"]')
   await ui.unmount()
 })
 
@@ -138,13 +151,13 @@ test('a narrow row keeps the head of each line and drops the rest', async ($, on
   await ui.unmount()
 })
 
-test('a branch too long for the row is dropped whole, never cut', async ($, on) => {
+test('a branch too long for the row is kept: the path shortens first, then the branch is cut', async ($, on) => {
   await start($, on)
 
   const ui = await footer($, 90)
-  const project = (await ui.find({ type: 'Text', text: /^~/ }))?.text ?? ''
-
-  expect(project).toBe('~/Documents/Projects/acme/shop-frontend · ●4')
+  const project = (await ui.find({ type: 'Text', text: /●4$/ }))?.text ?? ''
+  // The chip draws its text with a space each side.
+  expect(project).toBe('shop-frontend ·  ⎇ feature/checkout/fix-z-index…  · ●4')
   await ui.unmount()
 })
 

@@ -25,7 +25,7 @@ A status bar for [Claude Code](https://claude.com/claude-code) that sits in a th
 | | |
 |---|---|
 | `~/code/shop` | the project's folder |
-| `⎇ feature/cart` | the branch (dropped whole when it does not fit, never cut in half) |
+| `⎇ feature/cart` | the branch, as a chip; on a narrow terminal the folder shortens first (`~/…/shop`, then `shop`) and a long branch is cut with `…`, so the branch stays |
 | `●3` | files with uncommitted changes |
 | `↑2` `↓1` | commits not pushed, and not pulled |
 | `≡1` | stashes |
@@ -33,7 +33,7 @@ A status bar for [Claude Code](https://claude.com/claude-code) that sits in a th
 | `⚠ rebasing 2/5` | git stopped partway: a rebase, merge, cherry-pick, revert or bisect |
 | `!171 ✓` `#12 ✗` `CI ◔` | the branch's open GitLab MR or GitHub PR and its pipeline: green passed, red failed, yellow running; `CI` when there is a pipeline but no open MR |
 
-Everything that is not always useful appears only when it applies, so most of the time the bar is short. On a narrow terminal, items that do not fit are left out whole.
+Everything that is not always useful appears only when it applies, so most of the time the bar is short. On a narrow terminal, the other items that do not fit are left out whole.
 
 **Clawd** is the creature from Claude Code's welcome screen, without his legs: two rows beside a pan.
 

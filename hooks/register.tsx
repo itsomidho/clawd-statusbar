@@ -64,6 +64,25 @@ const BROWSER = /^mcp__.*(chrome|devtools|browser|playwright)/i
 const CAPTIONS: Record<string, string> = {
   thinking: 'thinking', reading: 'reading', editing: 'editing', running: 'running',
   browsing: 'browsing', delegating: 'spawning', asking: 'asking', waiting: 'waiting', working: 'cooking',
+  quiet: 'no reply',
+}
+// A model request whose stream has said nothing for this long: the API is
+// failing and retrying (or very slow), so he stops cooking until it answers.
+// Text, thinking and tool calls all stream, so real work is never this quiet.
+export const QUIET_MS = 15_000
+
+// Whether the main turn has gone quiet: it runs, no tool of its own is at
+// work, and nothing has streamed since `lastSignAt` (the turn's start, the
+// last chunk of a response, a tool starting or ending). A retried request is
+// a fresh one each time, so a request starting is no sign of life.
+export function isQuiet(isWaitingOnModel: boolean, lastSignAt: number, now: number) {
+  return isWaitingOnModel && now - lastSignAt >= QUIET_MS
+}
+
+// What he shows while the request is quiet: no longer "thinking", but waiting
+// on the API. A tool or an agent at work is shown as it is.
+export function withQuiet(doing: Doing, isQuietNow: boolean): Doing {
+  return isQuietNow && doing.activity === 'thinking' ? { ...doing, activity: 'quiet' } : doing
 }
 const IDLE: Doing = { activity: 'idle', tool: '', agents: 0, isBusy: false }
 
@@ -138,7 +157,7 @@ export function figure(eyes: Eyes, fingers: Fingers = 'none') {
 // Each kind of work's colour, for the word beside him.
 const MARKS: Record<string, string> = {
   thinking: 'claude', reading: 'suggestion', running: 'success', browsing: 'ide',
-  delegating: 'merged', waiting: 'merged', asking: 'warning',
+  delegating: 'merged', waiting: 'merged', asking: 'warning', quiet: 'warning',
 }
 
 export function mascot(state: {
@@ -146,6 +165,10 @@ export function mascot(state: {
 }) {
   const { isWorking, tick, isBlinking, served, doing } = state
   const eyes: Eyes = isBlinking ? 'shut' : 'open'
+  // No reply from the API: he stands still, the pan off the heat, no steam.
+  if (isWorking && doing?.activity === 'quiet') {
+    return { ...figure(eyes), steam: '   ', mark: 'warning', pan: tick < CRACK_TICKS ? PAN : `\\${yolk(tick)}/`, isHot: false }
+  }
   if (isWorking) {
     // All he does while Claude works is shake his fingers, one hand's up and
     // then the other's. The pan is on the heat; the word beside him says what
@@ -210,6 +233,9 @@ const inFlight = new Map<string, string[]>()
 let lastLoop = MAIN
 let isDone = true
 let doingNow = IDLE
+// When the main turn last showed a sign of life, and whether it is quiet now.
+let lastSignAt = 0
+let isQuietNow = false
 let shown = JSON.stringify(IDLE)
 // The animation's own count, and the pose last drawn: a tick that would draw
 // him the same as the last one writes nothing, so the bar is not redrawn.
@@ -227,6 +253,12 @@ function tickOn($: EngineInterface) {
   isAnimating = true
   animation = $.clock.every(TICK_MS, () => {
     ticks += 1
+    // A request gone quiet (or back from quiet) changes what he does.
+    const quiet = isQuiet(isMainWorking && (inFlight.get(MAIN) ?? []).length === 0, lastSignAt, Date.now())
+    if (quiet !== isQuietNow) {
+      isQuietNow = quiet
+      void publish($).catch(() => {})
+    }
     const pose = poseOf(ticks)
     if (pose === drawn) return
     drawn = pose
@@ -259,8 +291,17 @@ export function doingOf(isMain: boolean, agents: readonly string[], tools: Reado
   return { activity, tool, agents: agents.length, isBusy }
 }
 
+// The main turn moved (a chunk streamed, a tool started or ended): not quiet.
+function sign($: EngineInterface) {
+  lastSignAt = Date.now()
+  if (isQuietNow) {
+    isQuietNow = false
+    void publish($).catch(() => {})
+  }
+}
+
 async function publish($: EngineInterface) {
-  const doing = doingOf(isMainWorking, agentIds, inFlight, lastLoop)
+  const doing = withQuiet(doingOf(isMainWorking, agentIds, inFlight, lastLoop), isQuietNow)
   doingNow = doing
   const key = JSON.stringify(doing)
   if (key !== shown) {
@@ -475,6 +516,7 @@ export const register: Register = (on, options) => {
   // The main loop's turns; a subagent's run raises no turn.start.
   on('turn.start', async ($, e, next) => {
     isMainWorking = true
+    lastSignAt = Date.now()
     inFlight.delete(MAIN)
     // Set off the animation without holding the turn for it.
     void animate($).then(() => publish($)).catch(() => {})
@@ -496,10 +538,25 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  // The main loop's model requests: while one streams, he cooks; when its
+  // stream goes quiet (an API error being retried), he waits for it.
+  on('turn.step', async function* ($, e, next) {
+    if (e.agentId !== undefined) return yield* next(e)
+    const stream = next(e)
+    for await (const chunk of stream) {
+      // The engine's own items (the envelope, a retry marker) are no sign of
+      // a reply; text, thinking and tool calls are.
+      if (chunk.kind !== 'engine') sign($)
+      yield chunk
+    }
+    return await stream.result
+  })
+
   // Each tool call, the main loop's or an agent's, is what he does while it runs.
   on('tool.call', async ($, e, next) => {
     const loop = e.agentId ?? MAIN
     const tool = String(e.tool)
+    if (loop === MAIN) sign($)
     inFlight.set(loop, [...(inFlight.get(loop) ?? []), tool])
     lastLoop = loop
     void publish($).catch(() => {})
@@ -509,6 +566,7 @@ export const register: Register = (on, options) => {
       const tools = inFlight.get(loop)
       const at = tools?.lastIndexOf(tool) ?? -1
       if (tools && at !== -1) inFlight.set(loop, [...tools.slice(0, at), ...tools.slice(at + 1)])
+      if (loop === MAIN) sign($)
       void publish($).catch(() => {})
     }
   }).catch(($, e, next) => next(e))

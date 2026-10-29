@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { activityOf, blocks, caption, doingOf, figure, fit, mascot, yolk } from './register'
+import { activityOf, blocks, caption, doingOf, figure, fit, mascot, yolk, QUIET_MS, isQuiet, withQuiet } from './register'
 
 const BRANCH = '⎇ feature/checkout/fix-z-index-of-navbar-and-the-cart-drawer-overlap'
 const FIGURES = [
@@ -448,4 +448,23 @@ test('a /clear writes the bar again though nothing in it changed', async ($, on)
   expect(ran.length).toBeGreaterThan(before)
   expect(writes).toBe(2)
   expect(JSON.stringify(await (await footer($)).drawn())).toContain('CTX 24%')
+})
+
+test('a request whose stream says nothing for a while: he stops cooking and says no reply', () => {
+  // Quiet only while a request is open, and only after QUIET_MS of silence.
+  expect(isQuiet(true, 0, QUIET_MS - 1)).toBe(false)
+  expect(isQuiet(true, 0, QUIET_MS)).toBe(true)
+  expect(isQuiet(false, 0, QUIET_MS * 3)).toBe(false)
+  // Thinking turns into waiting on the API; a tool at work is shown as it is.
+  const thinking = { activity: 'thinking', tool: '', agents: 0, isBusy: true }
+  expect(withQuiet(thinking, true).activity).toBe('quiet')
+  expect(withQuiet(thinking, false).activity).toBe('thinking')
+  expect(withQuiet({ ...thinking, activity: 'running', tool: 'Bash' }, true).activity).toBe('running')
+  // Still, the pan off the heat, no steam, the word in the warning colour.
+  const quiet = pose({ isWorking: true, tick: 40, doing: withQuiet(thinking, true) })
+  expect(quiet.isHot).toBe(false)
+  expect(quiet.steam).toBe('   ')
+  expect(quiet.mark).toBe('warning')
+  expect(pose({ isWorking: true, tick: 41, doing: withQuiet(thinking, true) })).toEqual(quiet)
+  expect(caption(withQuiet(thinking, true))[0]).toBe('no reply')
 })

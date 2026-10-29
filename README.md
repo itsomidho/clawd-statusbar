@@ -46,6 +46,8 @@ While Claude works he shakes his fingers, the one above his left hand and then t
 
 On his left a word says what Claude is doing, in its own colour, with the tool or how many agents run under it: `thinking`, `reading`, `editing`, `running`, `browsing`, `spawning` (an agent), `waiting` (on background agents) or `asking` (you a question).
 
+When nothing has come back from the API for 15 seconds, as while Claude Code retries an API error, he stops cooking: he stands still with the pan off the heat and the word says `no reply`, in yellow, until the reply starts or the turn ends (a failed turn ends with a red `x`).
+
 A background agent keeps him busy after the main turn ends: he shows what the agent is doing, and serves the egg only once every agent is done. He steps aside on terminals narrower than 72 columns, and the caption on his left below 84.
 
 ## Install

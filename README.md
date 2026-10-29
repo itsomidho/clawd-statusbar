@@ -1,12 +1,12 @@
 # clawd-statusbar
 
-[![Latest release](https://img.shields.io/github/v/release/itsomidho/clawd-statusbar?label=release&color=7fbeb3)](https://github.com/itsomidho/clawd-statusbar/releases)
+[![Latest release](https://img.shields.io/github/v/release/itsomidho/clawd-statusbar?label=release&color=7fbeb3)](https://github.com/itsomidho/clawd-statusbar/releases) [![Wiki](https://img.shields.io/badge/docs-wiki-7fbeb3)](https://github.com/itsomidho/clawd-statusbar/wiki)
 
 A status bar for [Claude Code](https://claude.com/claude-code) that sits in a thin frame under the prompt, with Clawd, the little creature from Claude Code's welcome screen, frying an egg on the right while Claude works.
 
-![Clawd from the welcome screen in the status bar through one turn: thinking, reading, editing, running, browsing, then waiting on a background agent](docs/clawd.gif)
+![clawd-statusbar through one real turn: the model, context and usage limits, the branch as a chip, and Clawd frying an egg and saying what Claude is doing while it works](docs/clawd.gif)
 
-<sub>One turn, time-lapsed: the egg cracks in and the yolk sets while Claude thinks, reads, edits, runs a command and browses; it hands work to a background agent, and Clawd keeps going after the main turn ends until the agent is done, then serves the egg with a ✓.</sub>
+<sub>One real turn, recorded: Claude reads two files, adds a function and a test, and runs the tests; the bar counts the uncommitted files as they appear, and Clawd cooks until the turn is done.</sub>
 
 ## What it shows
 
@@ -112,6 +112,17 @@ claude plugin test .
 ```
 
 To run your working copy instead of the installed one, start Claude Code with `claude --plugin-dir /path/to/clawd-statusbar`; edits reload when a turn ends.
+
+## The clawd family
+
+clawd-statusbar is one of seven plugins in the [`itsomidho` marketplace](https://github.com/itsomidho/claude-plugins); each works on its own:
+
+- [clawd-tasks](https://github.com/itsomidho/clawd-tasks): a live task board: Claude's plan, and under each task the steps it took, how long it ran, the files it changed and the agents it started
+- [clawd-guard](https://github.com/itsomidho/clawd-guard): a safety net: stops risky shell commands, writes to secret files and leaked keys before they run
+- [clawd-notify](https://github.com/itsomidho/clawd-notify): tells you when Claude is done or needs you: a desktop notification, a chime, and optionally a push to your phone
+- [clawd-git](https://github.com/itsomidho/clawd-git): a live git panel beside the conversation: the file tree, changes, colored diffs and the commit graph; marks what Claude changed, stages, commits and asks Claude to review
+- [clawd-logs](https://github.com/itsomidho/clawd-logs): watches your project's error logs (WordPress debug.log, nginx, any log file): new errors show above the prompt, grouped, with a Fix button, and Claude hears about the ones its own work caused
+- [clawd-debug](https://github.com/itsomidho/clawd-debug): a step debugger beside the conversation: set a breakpoint, let Claude run your code with test data, and step line by line while every variable and line value shows
 
 ## License
 

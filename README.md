@@ -6,7 +6,7 @@ A status bar for [Claude Code](https://claude.com/claude-code) that sits in a th
 
 ![clawd-statusbar through one real turn: the model, context and usage limits, the branch as a chip, and Clawd frying an egg and saying what Claude is doing while it works](docs/clawd.gif)
 
-<sub>One real turn, recorded: Claude reads two files, adds a function and a test, and runs the tests; the bar counts the uncommitted files as they appear, and Clawd cooks until the turn is done.</sub>
+<sub>One real turn, recorded: Claude reads a file, adds a coupon and runs the tests; the word beside Clawd follows what it does, the bar counts the changed file, and the egg is served when the turn is done.</sub>
 
 ## What it shows
 
